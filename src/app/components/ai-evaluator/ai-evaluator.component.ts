@@ -29,6 +29,9 @@ export class AiEvaluatorComponent implements OnInit {
   error: string | null = null;
   showDetailExpanded = false;
   activeTag: SmartTag | null = null;
+  /** 1–5 sao được chọn; mặc định tất cả */
+  selectedStars: number[] = [1, 2, 3, 4, 5];
+  commentFetchHint: string | null = null;
 
   constructor(
     private tabUrlService: TabUrlService,
@@ -66,8 +69,9 @@ export class AiEvaluatorComponent implements OnInit {
       this.productUrl = url;
       this.updateProductName();
       this.result = null;
-      this.error = null;
-      this.showDetailExpanded = false;
+    this.error = null;
+    this.commentFetchHint = null;
+    this.showDetailExpanded = false;
       this.activeTag = null;
       this.urlRefreshHint = 'Đã lấy link trang đang xem';
     } else {
@@ -99,8 +103,18 @@ export class AiEvaluatorComponent implements OnInit {
     // Ghim cookie affiliate (bỏ qua nếu chưa cấu hình app-id/secret)
     this.pinAffiliateSilently(this.productUrl);
 
-    const comments = await this.shopeeRatings.fetchCommentsForUrl(this.productUrl);
+    const comments = await this.shopeeRatings.fetchCommentsForUrl(this.productUrl, {
+      starFilters: this.getActiveStarFilters()
+    });
     this.loadingComments = false;
+
+    if (comments.meta?.rcountWithContext) {
+      const n = comments.comments.length;
+      const cap = comments.meta.capped ? ' (giới hạn 500)' : '';
+      this.commentFetchHint = `Đã lấy ${n} comment có chữ${cap}`;
+    } else if (comments.comments.length) {
+      this.commentFetchHint = `Đã lấy ${comments.comments.length} comment có chữ`;
+    }
 
     if (!comments.comments.length) {
       this.error = comments.error
@@ -186,6 +200,29 @@ export class AiEvaluatorComponent implements OnInit {
 
   openCreateGroupBuy(): void {
     this.sidebarNav.openGroupBuy(this.productUrl, true);
+  }
+
+  isStarSelected(star: number): boolean {
+    return this.selectedStars.includes(star);
+  }
+
+  toggleStar(star: number): void {
+    if (this.selectedStars.includes(star)) {
+      if (this.selectedStars.length <= 1) return;
+      this.selectedStars = this.selectedStars.filter((s) => s !== star);
+    } else {
+      this.selectedStars = [...this.selectedStars, star].sort((a, b) => a - b);
+    }
+    this.commentFetchHint = null;
+  }
+
+  selectAllStars(): void {
+    this.selectedStars = [1, 2, 3, 4, 5];
+    this.commentFetchHint = null;
+  }
+
+  private getActiveStarFilters(): number[] {
+    return this.selectedStars.length >= 5 ? [] : [...this.selectedStars];
   }
 
   /** Ghim cookie affiliate — chỉ khi BE đã cấu hình Shopee Affiliate API */

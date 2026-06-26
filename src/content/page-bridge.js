@@ -1,6 +1,6 @@
 /**
- * MAIN world — paginate get_ratings trên tab Shopee.
- * Trang 1: đọc rating_total → tính số trang; tối đa 500 comment.
+ * MAIN world — paginate get_ratings (filter=1: chỉ đánh giá có chữ).
+ * type: 0 = tất cả sao, 1–5 = lọc theo số sao.
  */
 (function () {
   if (window.__mcaPageBridge) return;
@@ -10,6 +10,7 @@
   const PAGE_SIZE = 6;
   const MAX_COMMENTS = 500;
   const MAX_PAGES = Math.ceil(MAX_COMMENTS / PAGE_SIZE);
+  const FILTER_WITH_TEXT = 1;
 
   function getCsrf() {
     const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
@@ -21,13 +22,14 @@
     return 'https://shopee.vn/product/' + shopId + '/' + itemId;
   }
 
-  function buildRatingsUrl(shopId, itemId, offset) {
+  function buildRatingsUrl(shopId, itemId, offset, opts) {
+    const type = opts && opts.type != null ? String(opts.type) : '0';
     const params = new URLSearchParams({
-      filter: '0',
+      filter: String(opts && opts.filter != null ? opts.filter : FILTER_WITH_TEXT),
       flag: '1',
       limit: String(PAGE_SIZE),
       offset: String(offset),
-      type: '0',
+      type: type,
       exclude_filter: '1',
       filter_size: '0',
       fold_filter: '0',
@@ -68,35 +70,62 @@
     return false;
   }
 
-  function extractComment(r) {
-    const text = (r.comment || r.comment_region || r.cmt || r.review || '').trim();
-    if (text) return text;
-    const star = r.rating_star != null ? r.rating_star : r.rating;
-    const user = r.author_username || r.username || 'Người mua';
-    if (star) return '[' + star + ' sao] ' + user;
-    return '';
+  /** Chỉ lấy comment có chữ thật */
+  function extractCommentText(r) {
+    return (r.comment || r.comment_region || r.cmt || r.review || '').trim();
   }
 
-  /** Tính số trang cần gọi từ rating_total; không có total → tối đa MAX_PAGES */
-  function buildFetchPlan(data) {
+  function normalizeStarFilters(starFilters) {
+    if (!Array.isArray(starFilters) || !starFilters.length) return [];
+    const stars = starFilters
+      .map(function (s) { return Number(s); })
+      .filter(function (s) { return s >= 1 && s <= 5; });
+    const unique = [];
+    stars.forEach(function (s) {
+      if (unique.indexOf(s) < 0) unique.push(s);
+    });
+    unique.sort();
+    return unique.length === 5 ? [] : unique;
+  }
+
+  function countForStar(summary, star) {
+    if (!summary || !star) return 0;
+    const arr = summary.rating_count;
+    if (Array.isArray(arr)) {
+      const byIndex = Number(arr[star] ?? arr[star - 1] ?? 0);
+      if (byIndex > 0) return byIndex;
+    }
+    return 0;
+  }
+
+  function buildFetchPlan(data, opts) {
     const summary = data.item_rating_summary || {};
-    const ratingTotal = Number(
-      summary.rating_total ?? data.item_rating_count ?? 0
-    );
     const rcountWithContext = Number(summary.rcount_with_context ?? 0);
-    const hasTotal = Number.isFinite(ratingTotal) && ratingTotal > 0;
-    const targetRatings = hasTotal ? Math.min(ratingTotal, MAX_COMMENTS) : MAX_COMMENTS;
+    const ratingTotal = Number(summary.rating_total ?? data.item_rating_count ?? 0);
+    const star = opts && opts.type ? Number(opts.type) : 0;
+
+    let total = 0;
+    if (opts && opts.filter === FILTER_WITH_TEXT && rcountWithContext > 0 && star === 0) {
+      total = rcountWithContext;
+    } else if (star >= 1 && star <= 5) {
+      total = countForStar(summary, star) || rcountWithContext || ratingTotal;
+    } else {
+      total = rcountWithContext || ratingTotal;
+    }
+
+    const hasTotal = Number.isFinite(total) && total > 0;
+    const targetRatings = hasTotal ? Math.min(total, MAX_COMMENTS) : MAX_COMMENTS;
     const totalPages = Math.min(Math.ceil(targetRatings / PAGE_SIZE), MAX_PAGES);
     return {
-      ratingTotal: hasTotal ? ratingTotal : null,
+      ratingTotal: hasTotal ? total : null,
       rcountWithContext: rcountWithContext,
       totalPages: totalPages,
-      capped: hasTotal && ratingTotal > MAX_COMMENTS
+      capped: hasTotal && total > MAX_COMMENTS
     };
   }
 
-  async function fetchRatingsPage(shopId, itemId, offset, ref) {
-    const res = await window.fetch(buildRatingsUrl(shopId, itemId, offset), {
+  async function fetchRatingsPage(shopId, itemId, offset, ref, opts) {
+    const res = await window.fetch(buildRatingsUrl(shopId, itemId, offset, opts), {
       credentials: 'include',
       headers: buildBaseHeaders(ref)
     });
@@ -112,57 +141,107 @@
     return { data: data, ratings: data.ratings || [] };
   }
 
-  function appendRatings(comments, ratings) {
+  function appendTextComments(comments, ratings) {
     ratings.forEach(function (r) {
-      const t = extractComment(r);
-      if (t) comments.push(t);
+      const text = extractCommentText(r);
+      if (text) comments.push(text);
     });
   }
 
-  async function fetchAllCommentsInBrowser(shopId, itemId, referer) {
-    const ref = productReferer(shopId, itemId, referer || location.href);
+  async function fetchCommentStream(shopId, itemId, referer, opts, maxComments) {
+    const ref = productReferer(shopId, itemId, referer);
+    const streamOpts = {
+      filter: FILTER_WITH_TEXT,
+      type: opts && opts.type != null ? opts.type : 0
+    };
+    const cap = Math.min(maxComments || MAX_COMMENTS, MAX_COMMENTS);
     const comments = [];
     let pagesFetched = 0;
 
-    const first = await fetchRatingsPage(shopId, itemId, 0, ref);
+    const first = await fetchRatingsPage(shopId, itemId, 0, ref, streamOpts);
     pagesFetched++;
-    appendRatings(comments, first.ratings);
+    appendTextComments(comments, first.ratings);
 
-    if (!first.ratings.length && !comments.length) {
-      throw new Error('Shopee không trả đánh giá — kiểm tra đã mở đúng trang sản phẩm');
-    }
-
-    const plan = buildFetchPlan(first.data);
+    const plan = buildFetchPlan(first.data, streamOpts);
     let offset = PAGE_SIZE;
+    const maxPages = Math.min(plan.totalPages, Math.ceil(cap / PAGE_SIZE));
 
-    while (pagesFetched < plan.totalPages && comments.length < MAX_COMMENTS) {
-      const page = await fetchRatingsPage(shopId, itemId, offset, ref);
+    while (pagesFetched < maxPages && comments.length < cap) {
+      const page = await fetchRatingsPage(shopId, itemId, offset, ref, streamOpts);
       pagesFetched++;
-
       if (!page.ratings.length) break;
-      appendRatings(comments, page.ratings);
-
-      if (comments.length >= MAX_COMMENTS) break;
+      appendTextComments(comments, page.ratings);
+      if (comments.length >= cap) break;
       if (page.data.has_more !== true) break;
       if (page.ratings.length < PAGE_SIZE) break;
-
       offset += PAGE_SIZE;
     }
 
-    const result = comments.slice(0, MAX_COMMENTS);
-    if (!result.length) {
-      throw new Error('Không parse được nội dung đánh giá');
+    return {
+      comments: comments.slice(0, cap),
+      pagesFetched: pagesFetched,
+      plan: plan
+    };
+  }
+
+  async function fetchAllCommentsInBrowser(shopId, itemId, referer, options) {
+    const ref = productReferer(shopId, itemId, referer || location.href);
+    const stars = normalizeStarFilters(options && options.starFilters);
+    const allComments = [];
+    let pagesFetched = 0;
+    let meta = {};
+
+    if (!stars.length) {
+      const stream = await fetchCommentStream(shopId, itemId, ref, { type: 0 }, MAX_COMMENTS);
+      if (!stream.comments.length) {
+        throw new Error('Không có đánh giá có chữ — thử bỏ bớt lọc sao');
+      }
+      return {
+        comments: stream.comments,
+        meta: {
+          ratingTotal: stream.plan.ratingTotal,
+          rcountWithContext: stream.plan.rcountWithContext,
+          totalPages: stream.plan.totalPages,
+          pagesFetched: stream.pagesFetched,
+          capped: stream.plan.capped,
+          starFilters: [1, 2, 3, 4, 5],
+          textOnly: true
+        }
+      };
+    }
+
+    const perStar = Math.ceil(MAX_COMMENTS / stars.length);
+    for (let i = 0; i < stars.length; i++) {
+      const star = stars[i];
+      const stream = await fetchCommentStream(shopId, itemId, ref, { type: star }, perStar);
+      pagesFetched += stream.pagesFetched;
+      stream.comments.forEach(function (c) {
+        if (allComments.length < MAX_COMMENTS) {
+          allComments.push('[' + star + '★] ' + c);
+        }
+      });
+      if (i === 0) {
+        meta = {
+          ratingTotal: stream.plan.ratingTotal,
+          rcountWithContext: stream.plan.rcountWithContext
+        };
+      }
+      if (allComments.length >= MAX_COMMENTS) break;
+    }
+
+    if (!allComments.length) {
+      throw new Error('Không có comment ở mức sao đã chọn');
     }
 
     return {
-      comments: result,
-      meta: {
-        ratingTotal: plan.ratingTotal,
-        rcountWithContext: plan.rcountWithContext,
-        totalPages: plan.totalPages,
+      comments: allComments.slice(0, MAX_COMMENTS),
+      meta: Object.assign(meta, {
+        totalPages: pagesFetched,
         pagesFetched: pagesFetched,
-        capped: plan.capped || result.length >= MAX_COMMENTS
-      }
+        capped: allComments.length >= MAX_COMMENTS,
+        starFilters: stars,
+        textOnly: true
+      })
     };
   }
 
@@ -171,7 +250,8 @@
     fetchAllCommentsInBrowser(
       detail.shopId,
       detail.itemId,
-      detail.referer || location.href
+      detail.referer || location.href,
+      { starFilters: detail.starFilters }
     )
       .then(function (result) {
         document.dispatchEvent(new CustomEvent('mca-browser-comments-response', {

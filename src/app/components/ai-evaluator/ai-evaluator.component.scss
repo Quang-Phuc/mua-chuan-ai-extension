@@ -42,6 +42,51 @@
 }
 
 /* ── Input ── */
+.star-filter-block {
+  margin-top: 12px;
+}
+
+.star-filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-secondary;
+  margin-bottom: 8px;
+}
+
+.star-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.star-chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid $border-light;
+  background: $bg-page;
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &.active {
+    border-color: $shopee-orange;
+    background: rgba(238, 77, 45, 0.1);
+    color: $shopee-orange;
+  }
+
+  &.all.active {
+    border-color: $shopee-orange;
+  }
+}
+
+.star-filter-hint {
+  margin: 8px 0 0;
+  font-size: 10px;
+  color: $text-muted;
+}
+
 .url-input-row {
   display: flex;
   gap: 8px;

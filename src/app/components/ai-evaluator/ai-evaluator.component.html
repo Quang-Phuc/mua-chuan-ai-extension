@@ -38,6 +38,33 @@
       </div>
     }
 
+    <div class="star-filter-block">
+      <div class="star-filter-label">Lọc đánh giá có chữ theo sao</div>
+      <div class="star-filter-row">
+        <button
+          type="button"
+          class="star-chip all"
+          [class.active]="selectedStars.length === 5"
+          (click)="selectAllStars()">
+          Tất cả
+        </button>
+        @for (star of [1, 2, 3, 4, 5]; track star) {
+          <button
+            type="button"
+            class="star-chip"
+            [class.active]="isStarSelected(star)"
+            (click)="toggleStar(star)">
+            {{ star }}★
+          </button>
+        }
+      </div>
+      <p class="star-filter-hint">Chỉ lấy review có bình luận chữ · tối đa 500</p>
+    </div>
+
+    @if (commentFetchHint) {
+      <p class="url-refresh-hint">{{ commentFetchHint }}</p>
+    }
+
     <button
       class="analyze-btn"
       [class.loading]="loading"

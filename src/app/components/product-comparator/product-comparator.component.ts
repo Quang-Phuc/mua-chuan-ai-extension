@@ -25,6 +25,7 @@ export class ProductComparatorComponent implements OnInit {
   urlRefreshHint: string | null = null;
   result: AnalysisResponse | null = null;
   error: string | null = null;
+  selectedStars: number[] = [1, 2, 3, 4, 5];
 
   constructor(
     private tabUrlService: TabUrlService,
@@ -66,9 +67,10 @@ export class ProductComparatorComponent implements OnInit {
     this.pinAffiliateSilently(this.urlA);
     this.pinAffiliateSilently(this.urlB);
 
+    const starFilters = this.selectedStars.length >= 5 ? undefined : { starFilters: [...this.selectedStars] };
     const [resultA, resultB] = await Promise.all([
-      this.shopeeRatings.fetchCommentsForUrl(this.urlA),
-      this.shopeeRatings.fetchCommentsForUrl(this.urlB)
+      this.shopeeRatings.fetchCommentsForUrl(this.urlA, starFilters),
+      this.shopeeRatings.fetchCommentsForUrl(this.urlB, starFilters)
     ]);
     const commentsA = resultA.comments;
     const commentsB = resultB.comments;

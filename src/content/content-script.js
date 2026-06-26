@@ -41,7 +41,7 @@
     return null;
   }
 
-  async function fetchCommentsViaPageBridge(shopId, itemId, referer) {
+  async function fetchCommentsViaPageBridge(shopId, itemId, referer, starFilters) {
     await waitForPageBridge(8000);
     return new Promise((resolve, reject) => {
       const requestId = Math.random().toString(36).slice(2);
@@ -63,7 +63,8 @@
           requestId,
           shopId: Number(shopId),
           itemId: Number(itemId),
-          referer: referer || window.location.href
+          referer: referer || window.location.href,
+          starFilters: starFilters
         }
       }));
     });
@@ -204,11 +205,12 @@
       const sid = resolved?.shopId || Number(msg.shopId);
       const iid = resolved?.itemId || Number(msg.itemId);
       const ref = msg.referer || window.location.href;
-      fetchCommentsViaPageBridge(sid, iid, ref)
+      fetchCommentsViaPageBridge(sid, iid, ref, msg.starFilters)
         .then((result) => sendResponse({
           ok: !!result.ok,
           comments: result.comments || [],
-          error: result.error
+          error: result.error,
+          meta: result.meta
         }))
         .catch((e) => sendResponse({ ok: false, comments: [], error: e.message }));
       return true;

@@ -20,7 +20,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.action === 'proxy-fetch-comments-browser') {
-    proxyFetchCommentsInBrowser(message.shopId, message.itemId, message.productUrl)
+    proxyFetchCommentsInBrowser(
+      message.shopId,
+      message.itemId,
+      message.productUrl,
+      message.starFilters
+    )
       .then(sendResponse)
       .catch((err) => sendResponse({ ok: false, comments: [], error: String(err) }));
     return true;
@@ -144,7 +149,7 @@ function sendToTab(tabId, payload) {
   });
 }
 
-async function proxyFetchCommentsInBrowser(shopId, itemId, productUrl) {
+async function proxyFetchCommentsInBrowser(shopId, itemId, productUrl, starFilters) {
   const tabId = await findShopeeTab(shopId, itemId, productUrl);
   if (!tabId) {
     return { ok: false, comments: [], error: 'Không tìm thấy tab Shopee.' };
@@ -153,7 +158,8 @@ async function proxyFetchCommentsInBrowser(shopId, itemId, productUrl) {
     action: 'fetch-comments-browser',
     shopId,
     itemId,
-    referer: productUrl
+    referer: productUrl,
+    starFilters
   });
 }
 
