@@ -1,0 +1,134 @@
+<div class="group-buy-content">
+  @if (view === 'create') {
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">👥</span>
+        <span class="card-title">Tạo Kèo Mua Chung</span>
+      </div>
+
+      <div class="url-row">
+        <input class="url-input" [(ngModel)]="productUrl" placeholder="Link Shopee sản phẩm..." />
+        <button type="button" class="icon-btn" (click)="refreshUrl()" title="Lấy link trang đang xem">↻</button>
+      </div>
+      @if (productName) {
+        <p class="product-chip">{{ productName }}</p>
+      }
+
+      <button type="button" class="primary-btn" [disabled]="!productUrl || detecting" (click)="startDetect()">
+        @if (detecting) {
+          <span class="spinner"></span> AI đang quét chương trình giảm giá của Shop...
+        } @else {
+          🔍 Quét Mã Gom Đơn Tự Động
+        }
+      </button>
+
+      @if (isAutoDetectSuccess && autoDetectMessage) {
+        <div class="alert success">{{ autoDetectMessage }}</div>
+      }
+
+      @if (!detecting && !isAutoDetectSuccess && detected && !detected.success) {
+        <div class="alert warn">
+          AI không tìm thấy mã gom đơn tự động. Vui lòng nhập nhanh số lượng và % giảm giá của Shop bạn nhìn thấy.
+        </div>
+      }
+
+      @if (detected && !detected.success) {
+        <div class="fallback-form">
+            <label>Số lượng cần gom tối thiểu</label>
+            <input type="number" min="2" [(ngModel)]="manualTargetQty" />
+            <label>Ưu đãi nhận được (% hoặc số tiền, VD: 15% hoặc 50k)</label>
+            <input type="text" [(ngModel)]="manualDiscount" placeholder="15%" />
+            <label>Giá sản phẩm (VNĐ)</label>
+            <input type="number" [(ngModel)]="manualUnitPrice" />
+            <label>Phí ship cả đơn (VNĐ)</label>
+            <input type="number" [(ngModel)]="manualShipping" />
+        </div>
+      }
+
+      @if (isAutoDetectSuccess || (detected && !detected.success)) {
+        <button type="button" class="cta-btn" [disabled]="creating" (click)="activateCampaign()">
+          @if (creating) {
+            <span class="spinner light"></span> Đang tạo kèo...
+          } @else {
+            🚀 Kích Hoạt Kèo &amp; Tạo Link Chia Sẻ
+          }
+        </button>
+      }
+
+      <div class="join-by-id">
+        <label>Hoặc tham gia kèo có sẵn (nhập mã)</label>
+        <div class="url-row">
+          <input class="url-input" [(ngModel)]="joinCampaignIdInput" placeholder="VD: 12" />
+          <button type="button" class="icon-btn" (click)="loadLobbyByInput()">Vào</button>
+        </div>
+      </div>
+
+      @if (error) {
+        <div class="alert error">{{ error }}</div>
+      }
+    </section>
+  } @else if (lobby) {
+    <section class="card lobby-card">
+      <div class="card-header">
+        <span class="card-icon">🏠</span>
+        <span class="card-title">Phòng Chờ Gom Đơn</span>
+      </div>
+
+      <p class="product-title">{{ lobby.productName }}</p>
+
+      <div class="progress-wrap">
+        <div class="progress-bar" [style.width.%]="lobby.progressPercent"></div>
+      </div>
+      <p class="progress-text monospace">[{{ progressBlocks() }} {{ lobby.currentJoined }}/{{ lobby.targetQuantity }} người]</p>
+      <p class="highlight">{{ lobby.highlightMessage }}</p>
+
+      <div class="share-row">
+        <input class="url-input" [value]="lobby.shareUrl" readonly />
+        <button type="button" class="icon-btn" (click)="copyShareLink()">📋</button>
+      </div>
+      @if (copyHint) { <p class="copy-hint">{{ copyHint }}</p> }
+
+      <table class="split-table">
+        <thead>
+          <tr>
+            <th>Người tham gia</th>
+            <th>Giá gốc</th>
+            <th>Sau giảm</th>
+            <th>Ship chia</th>
+            <th>Tổng</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of lobby.splitBill; track row.participantName) {
+            <tr [class.host-row]="row.host">
+              <td>{{ row.participantName }}</td>
+              <td>{{ formatVnd(row.originalPrice) }}</td>
+              <td>{{ formatVnd(row.discountedPrice) }}</td>
+              <td>{{ formatVnd(row.shippingShare) }}</td>
+              <td class="total">{{ formatVnd(row.totalPay) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      @if (!lobby.expired && lobby.remaining > 0) {
+        <div class="join-row">
+          <input class="url-input" [(ngModel)]="joinName" placeholder="Tên của bạn (tuỳ chọn)" />
+          <button type="button" class="primary-btn small" [disabled]="joining" (click)="joinLobby()">
+            {{ joining ? '...' : 'Tham gia kèo' }}
+          </button>
+        </div>
+      }
+
+      <button type="button" class="cta-btn buy-btn" (click)="buyOnShopee()">
+        ⚡ Tham Gia Chốt Đơn Trên Shopee PC
+      </button>
+
+      <button type="button" class="link-btn" (click)="backToCreate()">← Tạo kèo mới</button>
+
+      @if (error) {
+        <div class="alert error">{{ error }}</div>
+      }
+    </section>
+  }
+</div>

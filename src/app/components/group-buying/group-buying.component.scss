@@ -1,0 +1,225 @@
+@import '../../../styles/variables';
+
+:host {
+  display: block;
+  padding: 16px;
+  padding-bottom: 24px;
+}
+
+.card {
+  background: $bg-card;
+  border: 1px solid $border-light;
+  border-radius: $radius-lg;
+  padding: 16px;
+  box-shadow: $shadow-sm;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.url-row, .share-row, .join-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.url-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1.5px solid $border-light;
+  border-radius: $radius-md;
+  font-size: 12px;
+}
+
+.icon-btn {
+  width: 40px;
+  border: 1.5px solid $border-light;
+  border-radius: $radius-md;
+  background: #fff;
+  cursor: pointer;
+  color: $shopee-orange;
+  font-weight: 700;
+}
+
+.product-chip {
+  font-size: 11px;
+  color: $text-secondary;
+  margin: 0 0 10px;
+}
+
+.primary-btn, .cta-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border: none;
+  border-radius: $radius-md;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.primary-btn {
+  background: #fff;
+  border: 1.5px solid $shopee-orange;
+  color: $shopee-orange;
+}
+
+.cta-btn {
+  background: $shopee-gradient;
+  color: #fff;
+  box-shadow: $shadow-orange;
+}
+
+.primary-btn.small {
+  width: auto;
+  padding: 10px 14px;
+  margin-top: 0;
+}
+
+.fallback-form {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+
+  label {
+    font-size: 11px;
+    font-weight: 600;
+    color: $text-secondary;
+  }
+
+  input {
+    padding: 8px 10px;
+    border: 1px solid $border-light;
+    border-radius: $radius-sm;
+    font-size: 12px;
+  }
+}
+
+.alert {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: $radius-sm;
+  font-size: 11px;
+  line-height: 1.45;
+
+  &.success { background: #ECFDF5; color: #047857; }
+  &.warn { background: #FFF7ED; color: #C2410C; }
+  &.error { background: #FEF2F2; color: #B91C1C; }
+}
+
+.join-by-id {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed $border-light;
+
+  label {
+    display: block;
+    font-size: 11px;
+    color: $text-muted;
+    margin-bottom: 6px;
+  }
+}
+
+.progress-wrap {
+  height: 10px;
+  background: #F1F5F9;
+  border-radius: $radius-pill;
+  overflow: hidden;
+  margin: 10px 0 6px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: $shopee-gradient;
+  transition: width 0.4s ease;
+}
+
+.progress-text {
+  font-size: 11px;
+  color: $shopee-orange;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.monospace { font-family: ui-monospace, monospace; }
+
+.highlight {
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-primary;
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+
+.product-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.split-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  margin: 12px 0;
+
+  th, td {
+    border: 1px solid $border-light;
+    padding: 6px 4px;
+    text-align: left;
+  }
+
+  th {
+    background: #F8FAFC;
+    font-weight: 700;
+  }
+
+  .total { font-weight: 700; color: $shopee-orange; }
+  .host-row { background: #FFF5F2; }
+}
+
+.buy-btn { margin-top: 12px; }
+
+.link-btn {
+  width: 100%;
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: $text-muted;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.copy-hint {
+  font-size: 10px;
+  color: $score-green;
+  margin: -4px 0 8px;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(238, 77, 45, 0.2);
+  border-top-color: $shopee-orange;
+  border-radius: 50%;
+  animation: mca-spin 0.7s linear infinite;
+
+  &.light {
+    border-color: rgba(255,255,255,0.3);
+    border-top-color: #fff;
+  }
+}

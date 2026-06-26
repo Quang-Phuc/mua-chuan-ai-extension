@@ -12,7 +12,7 @@
       [class.active]="activeTab === 'evaluator'"
       (click)="setTab('evaluator')">
       <span class="tab-icon">🤖</span>
-      <span>AI Đánh Giá</span>
+      <span>AI</span>
     </button>
     <button
       class="tab-btn"
@@ -21,13 +21,22 @@
       <span class="tab-icon">⚖️</span>
       <span>So Sánh</span>
     </button>
+    <button
+      class="tab-btn"
+      [class.active]="activeTab === 'groupbuy'"
+      (click)="setTab('groupbuy')">
+      <span class="tab-icon">👥</span>
+      <span>Mua Chung</span>
+    </button>
   </nav>
 </header>
 
 <main class="sidebar-body">
   @if (activeTab === 'evaluator') {
     <mca-ai-evaluator />
-  } @else {
+  } @else if (activeTab === 'comparator') {
     <mca-product-comparator />
+  } @else {
+    <mca-group-buying />
   }
 </main>
