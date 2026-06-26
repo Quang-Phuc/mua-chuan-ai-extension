@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "ng serve --port 4200",
     "build": "ng build --configuration production && node scripts/copy-extension-assets.js",
     "build:ext": "ng build --configuration extension && node scripts/copy-extension-assets.js",
     "watch": "ng build --watch --configuration development"

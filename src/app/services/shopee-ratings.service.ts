@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { TabUrlService } from './tab-url.service';
 import { RatingsFetchResult } from '../models/ratings-fetch.model';
 
-/** Lấy comment trực tiếp trên tab Shopee (page-bridge), gửi lên BE chỉ khi /analyze */
+/** Lấy comment trên tab Shopee (tối đa 500), gửi lên BE qua /analyze */
 @Injectable({ providedIn: 'root' })
 export class ShopeeRatingsService {
   constructor(private tabUrlService: TabUrlService) {}
@@ -30,13 +30,13 @@ export class ShopeeRatingsService {
   }
 
   async fetchComments(shopId: number, itemId: number, productUrl?: string): Promise<RatingsFetchResult> {
-    const comments = await this.fetchCommentsInBrowser(shopId, itemId, productUrl);
-    if (comments.length) {
-      return { comments };
+    const result = await this.fetchCommentsInBrowser(shopId, itemId, productUrl);
+    if (result.comments.length) {
+      return { comments: result.comments };
     }
     return {
       comments: [],
-      error: 'Không lấy được comment Shopee. Mở trang sản phẩm, F5, thử lại.'
+      error: result.error ?? 'Không lấy được comment Shopee. Mở trang sản phẩm, F5, thử lại.'
     };
   }
 
@@ -44,20 +44,27 @@ export class ShopeeRatingsService {
     shopId: number,
     itemId: number,
     productUrl?: string
-  ): Promise<string[]> {
+  ): Promise<{ comments: string[]; error?: string }> {
     return new Promise((resolve) => {
       if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
-        resolve([]);
+        resolve({ comments: [], error: 'Extension chưa sẵn sàng' });
         return;
       }
       chrome.runtime.sendMessage(
-        { action: 'proxy-fetch-comments-browser', shopId, itemId, productUrl, maxComments: 300 },
+        { action: 'proxy-fetch-comments-browser', shopId, itemId, productUrl },
         (response) => {
-          if (chrome.runtime.lastError || !response?.ok) {
-            resolve([]);
+          if (chrome.runtime.lastError) {
+            resolve({ comments: [], error: chrome.runtime.lastError.message });
             return;
           }
-          resolve(response.comments ?? []);
+          if (!response?.ok) {
+            resolve({
+              comments: response?.comments ?? [],
+              error: response?.error ?? 'Không lấy được comment từ tab Shopee'
+            });
+            return;
+          }
+          resolve({ comments: response.comments ?? [] });
         }
       );
     });

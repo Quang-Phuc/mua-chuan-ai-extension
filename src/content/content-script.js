@@ -3,7 +3,7 @@
  */
 (function () {
   const SIDEBAR_WIDTH = 380;
-  const MAX_COMMENTS = 300;
+  const FETCH_TIMEOUT_MS = 120000;
   let isOpen = false;
   let sidebar = null;
 
@@ -41,14 +41,14 @@
     return null;
   }
 
-  async function fetchCommentsViaPageBridge(shopId, itemId, referer, maxComments) {
-    await waitForPageBridge(5000);
+  async function fetchCommentsViaPageBridge(shopId, itemId, referer) {
+    await waitForPageBridge(8000);
     return new Promise((resolve, reject) => {
       const requestId = Math.random().toString(36).slice(2);
       const timer = setTimeout(() => {
         document.removeEventListener('mca-browser-comments-response', handler);
-        reject(new Error('Hết thời gian chờ lấy comment'));
-      }, 60000);
+        reject(new Error('Hết thời gian chờ lấy comment (quá 2 phút)'));
+      }, FETCH_TIMEOUT_MS);
 
       function handler(ev) {
         if (ev.detail?.requestId !== requestId) return;
@@ -63,8 +63,7 @@
           requestId,
           shopId: Number(shopId),
           itemId: Number(itemId),
-          referer: referer || window.location.href,
-          maxComments: maxComments || MAX_COMMENTS
+          referer: referer || window.location.href
         }
       }));
     });
@@ -205,7 +204,7 @@
       const sid = resolved?.shopId || Number(msg.shopId);
       const iid = resolved?.itemId || Number(msg.itemId);
       const ref = msg.referer || window.location.href;
-      fetchCommentsViaPageBridge(sid, iid, ref, msg.maxComments)
+      fetchCommentsViaPageBridge(sid, iid, ref)
         .then((result) => sendResponse({
           ok: !!result.ok,
           comments: result.comments || [],

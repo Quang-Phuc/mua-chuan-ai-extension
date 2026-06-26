@@ -17,6 +17,12 @@
   "content_scripts": [
     {
       "matches": ["https://shopee.vn/*", "https://*.shopee.vn/*"],
+      "js": ["page-bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://shopee.vn/*", "https://*.shopee.vn/*"],
       "js": ["content-script.js"],
       "css": ["content-styles.css"],
       "run_at": "document_idle"
@@ -28,7 +34,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["index.html", "main*.js", "polyfills*.js", "runtime*.js", "styles*.css", "assets/*"],
+      "resources": ["index.html", "page-bridge.js", "main*.js", "polyfills*.js", "runtime*.js", "styles*.css", "assets/*"],
       "matches": ["https://shopee.vn/*", "https://*.shopee.vn/*"]
     }
   ]

@@ -1,5 +1,6 @@
 /**
- * MAIN world — paginate get_ratings trên tab Shopee (cùng cookie user).
+ * MAIN world — paginate get_ratings trên tab Shopee.
+ * Trang 1: đọc rating_total → tính số trang; tối đa 500 comment.
  */
 (function () {
   if (window.__mcaPageBridge) return;
@@ -7,7 +8,8 @@
   document.documentElement.dataset.mcaBridgeReady = '1';
 
   const PAGE_SIZE = 6;
-  const MAX_COMMENTS = 300;
+  const MAX_COMMENTS = 500;
+  const MAX_PAGES = Math.ceil(MAX_COMMENTS / PAGE_SIZE);
 
   function getCsrf() {
     const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
@@ -59,50 +61,109 @@
     return headers;
   }
 
+  function isShopeeApiError(json) {
+    if (!json || typeof json !== 'object') return true;
+    if (json.error != null && Number(json.error) !== 0) return true;
+    if (json.err != null && Number(json.err) !== 0) return true;
+    return false;
+  }
+
   function extractComment(r) {
     const text = (r.comment || r.comment_region || r.cmt || r.review || '').trim();
     if (text) return text;
     const star = r.rating_star != null ? r.rating_star : r.rating;
     const user = r.author_username || r.username || 'Người mua';
-    if (star) return '[' + star + ' sao] ' + user + ' — không có bình luận chữ';
+    if (star) return '[' + star + ' sao] ' + user;
     return '';
   }
 
-  async function fetchAllCommentsInBrowser(shopId, itemId, referer, maxComments) {
+  /** Tính số trang cần gọi từ rating_total; không có total → tối đa MAX_PAGES */
+  function buildFetchPlan(data) {
+    const summary = data.item_rating_summary || {};
+    const ratingTotal = Number(
+      summary.rating_total ?? data.item_rating_count ?? 0
+    );
+    const rcountWithContext = Number(summary.rcount_with_context ?? 0);
+    const hasTotal = Number.isFinite(ratingTotal) && ratingTotal > 0;
+    const targetRatings = hasTotal ? Math.min(ratingTotal, MAX_COMMENTS) : MAX_COMMENTS;
+    const totalPages = Math.min(Math.ceil(targetRatings / PAGE_SIZE), MAX_PAGES);
+    return {
+      ratingTotal: hasTotal ? ratingTotal : null,
+      rcountWithContext: rcountWithContext,
+      totalPages: totalPages,
+      capped: hasTotal && ratingTotal > MAX_COMMENTS
+    };
+  }
+
+  async function fetchRatingsPage(shopId, itemId, offset, ref) {
+    const res = await window.fetch(buildRatingsUrl(shopId, itemId, offset), {
+      credentials: 'include',
+      headers: buildBaseHeaders(ref)
+    });
+    if (!res.ok) {
+      throw new Error('Shopee HTTP ' + res.status + (res.status === 403 ? ' — F5 trang rồi thử lại' : ''));
+    }
+    const json = await res.json();
+    if (isShopeeApiError(json)) {
+      const msg = json.error_msg || json.message || ('Shopee error ' + json.error);
+      throw new Error(msg);
+    }
+    const data = json.data || {};
+    return { data: data, ratings: data.ratings || [] };
+  }
+
+  function appendRatings(comments, ratings) {
+    ratings.forEach(function (r) {
+      const t = extractComment(r);
+      if (t) comments.push(t);
+    });
+  }
+
+  async function fetchAllCommentsInBrowser(shopId, itemId, referer) {
     const ref = productReferer(shopId, itemId, referer || location.href);
-    const max = maxComments || MAX_COMMENTS;
     const comments = [];
-    let offset = 0;
-    let hasMore = true;
+    let pagesFetched = 0;
 
-    while (comments.length < max && hasMore) {
-      const res = await window.fetch(buildRatingsUrl(shopId, itemId, offset), {
-        credentials: 'include',
-        headers: buildBaseHeaders(ref)
-      });
-      if (!res.ok) {
-        throw new Error('HTTP ' + res.status);
-      }
-      const json = await res.json();
-      if (json.error || json.err) {
-        throw new Error(json.error_msg || json.message || 'Shopee từ chối');
-      }
-      const data = json.data || {};
-      const ratings = data.ratings || [];
-      ratings.forEach(function (r) {
-        const t = extractComment(r);
-        if (t) comments.push(t);
-      });
-      hasMore = data.has_more === true;
-      if (ratings.length < PAGE_SIZE) hasMore = false;
+    const first = await fetchRatingsPage(shopId, itemId, 0, ref);
+    pagesFetched++;
+    appendRatings(comments, first.ratings);
+
+    if (!first.ratings.length && !comments.length) {
+      throw new Error('Shopee không trả đánh giá — kiểm tra đã mở đúng trang sản phẩm');
+    }
+
+    const plan = buildFetchPlan(first.data);
+    let offset = PAGE_SIZE;
+
+    while (pagesFetched < plan.totalPages && comments.length < MAX_COMMENTS) {
+      const page = await fetchRatingsPage(shopId, itemId, offset, ref);
+      pagesFetched++;
+
+      if (!page.ratings.length) break;
+      appendRatings(comments, page.ratings);
+
+      if (comments.length >= MAX_COMMENTS) break;
+      if (page.data.has_more !== true) break;
+      if (page.ratings.length < PAGE_SIZE) break;
+
       offset += PAGE_SIZE;
-      if (!ratings.length) break;
     }
 
-    if (!comments.length) {
-      throw new Error('Không có đánh giá chữ');
+    const result = comments.slice(0, MAX_COMMENTS);
+    if (!result.length) {
+      throw new Error('Không parse được nội dung đánh giá');
     }
-    return comments.slice(0, max);
+
+    return {
+      comments: result,
+      meta: {
+        ratingTotal: plan.ratingTotal,
+        rcountWithContext: plan.rcountWithContext,
+        totalPages: plan.totalPages,
+        pagesFetched: pagesFetched,
+        capped: plan.capped || result.length >= MAX_COMMENTS
+      }
+    };
   }
 
   document.addEventListener('mca-browser-fetch-comments', function (ev) {
@@ -110,17 +171,26 @@
     fetchAllCommentsInBrowser(
       detail.shopId,
       detail.itemId,
-      detail.referer || location.href,
-      detail.maxComments || MAX_COMMENTS
+      detail.referer || location.href
     )
-      .then(function (comments) {
+      .then(function (result) {
         document.dispatchEvent(new CustomEvent('mca-browser-comments-response', {
-          detail: { requestId: detail.requestId, ok: true, comments: comments }
+          detail: {
+            requestId: detail.requestId,
+            ok: true,
+            comments: result.comments,
+            meta: result.meta
+          }
         }));
       })
       .catch(function (err) {
         document.dispatchEvent(new CustomEvent('mca-browser-comments-response', {
-          detail: { requestId: detail.requestId, ok: false, error: err.message, comments: [] }
+          detail: {
+            requestId: detail.requestId,
+            ok: false,
+            error: err.message || 'Lỗi lấy comment',
+            comments: []
+          }
         }));
       });
   });
