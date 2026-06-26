@@ -1,11 +1,18 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone } from '@angular/core';
 import { TabUrlService } from './tab-url.service';
-import { CommentFetchOptions, RatingsFetchResult } from '../models/ratings-fetch.model';
+import {
+  CommentFetchOptions,
+  CommentFetchProgress,
+  RatingsFetchResult
+} from '../models/ratings-fetch.model';
 
-/** Lấy comment có chữ trên tab Shopee (tối đa 500), gửi BE qua /analyze */
+/** Lấy comment có chữ trên tab Shopee (tối đa 500), có tiến trình bất đồng bộ */
 @Injectable({ providedIn: 'root' })
 export class ShopeeRatingsService {
-  constructor(private tabUrlService: TabUrlService) {}
+  constructor(
+    private tabUrlService: TabUrlService,
+    private ngZone: NgZone
+  ) {}
 
   async fetchCommentsForUrl(
     productUrl: string,
@@ -59,9 +66,43 @@ export class ShopeeRatingsService {
         resolve({ comments: [], error: 'Extension chưa sẵn sàng' });
         return;
       }
+
+      const requestId = Math.random().toString(36).slice(2);
+      const onProgress = options?.onProgress;
+
+      const progressListener = (message: unknown) => {
+        const msg = message as {
+          action?: string;
+          requestId?: string;
+          phase?: CommentFetchProgress['phase'];
+          pagesFetched?: number;
+          totalPages?: number;
+          commentsCount?: number;
+        };
+        if (msg?.action !== 'comments-fetch-progress' || msg.requestId !== requestId || !onProgress) {
+          return;
+        }
+        this.ngZone.run(() => {
+          onProgress({
+            phase: msg.phase ?? 'fetch',
+            pagesFetched: msg.pagesFetched,
+            totalPages: msg.totalPages,
+            commentsCount: msg.commentsCount
+          });
+        });
+      };
+
+      chrome.runtime.onMessage.addListener(progressListener);
+
+      const finish = (payload: { comments: string[]; error?: string; meta?: RatingsFetchResult['meta'] }) => {
+        chrome.runtime.onMessage.removeListener(progressListener);
+        resolve(payload);
+      };
+
       chrome.runtime.sendMessage(
         {
           action: 'proxy-fetch-comments-browser',
+          requestId,
           shopId,
           itemId,
           productUrl,
@@ -69,17 +110,17 @@ export class ShopeeRatingsService {
         },
         (response) => {
           if (chrome.runtime.lastError) {
-            resolve({ comments: [], error: chrome.runtime.lastError.message });
+            finish({ comments: [], error: chrome.runtime.lastError.message });
             return;
           }
           if (!response?.ok) {
-            resolve({
+            finish({
               comments: response?.comments ?? [],
               error: response?.error ?? 'Không lấy được comment từ tab Shopee'
             });
             return;
           }
-          resolve({ comments: response.comments ?? [], meta: response.meta });
+          finish({ comments: response.comments ?? [], meta: response.meta });
         }
       );
     });

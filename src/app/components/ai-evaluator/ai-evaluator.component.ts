@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TabUrlService } from '../../services/tab-url.service';
@@ -9,6 +9,8 @@ import { AffiliateSilentService } from '../../services/affiliate-silent.service'
 import { AffiliatePurchaseService } from '../../services/affiliate-purchase.service';
 import { SidebarNavService } from '../../services/sidebar-nav.service';
 import { AnalysisResponse, ProductAnalysis, SmartTag } from '../../models/analysis.model';
+import { CommentFetchProgress } from '../../models/ratings-fetch.model';
+import { buildTagSampleList } from '../../utils/tag-comment-matcher';
 
 @Component({
   selector: 'mca-ai-evaluator',
@@ -17,11 +19,14 @@ import { AnalysisResponse, ProductAnalysis, SmartTag } from '../../models/analys
   templateUrl: './ai-evaluator.component.html',
   styleUrl: './ai-evaluator.component.scss'
 })
-export class AiEvaluatorComponent implements OnInit {
+export class AiEvaluatorComponent implements OnInit, OnDestroy {
   productUrl = '';
   productName: string | null = null;
   loading = false;
   loadingComments = false;
+  loadingAnalyze = false;
+  fetchProgress: CommentFetchProgress | null = null;
+  loadingTipIndex = 0;
   refreshingUrl = false;
   urlRefreshHint: string | null = null;
   urlRefreshIsWarn = false;
@@ -31,7 +36,27 @@ export class AiEvaluatorComponent implements OnInit {
   activeTag: SmartTag | null = null;
   /** 1–5 sao được chọn; mặc định tất cả */
   selectedStars: number[] = [1, 2, 3, 4, 5];
-  commentFetchHint: string | null = null;
+
+  sourceComments: string[] = [];
+  activeTagSamples: string[] = [];
+
+  private tipTimer: ReturnType<typeof setInterval> | null = null;
+
+  private static readonly FETCH_TIPS = [
+    'Đang gom review có chữ — bỏ qua đánh giá trống…',
+    'Càng nhiều bình luận, AI càng bắt phốt chuẩn hơn.',
+    'Đọc từng review như bạn lướt feed — nhưng không mỏi tay.',
+    'Lọc đúng số sao bạn chọn — chỉ lấy comment có nội dung.',
+    'Seeding hay thật? Để AI đọc hộ trước khi bạn quyết định.'
+  ];
+
+  private static readonly ANALYZE_TIPS = [
+    'AI đang tìm tag tiêu cực — né size sai, chất lượng kém…',
+    'Tính độ tin cậy review — phát hiện comment ảo, copy-paste.',
+    'Gom ưu / nhược từ hàng loạt bình luận thật.',
+    'Sắp xong — chuẩn bị xem điểm, độ tin cậy và bộ lọc né phốt.',
+    'Một chút nữa thôi — đáng để đợi hơn mua nhầm hàng.'
+  ];
 
   constructor(
     private tabUrlService: TabUrlService,
@@ -48,6 +73,17 @@ export class AiEvaluatorComponent implements OnInit {
     this.updateProductName();
   }
 
+  ngOnDestroy(): void {
+    this.stopLoadingTips();
+  }
+
+  get currentLoadingTip(): string {
+    const tips = this.loadingAnalyze
+      ? AiEvaluatorComponent.ANALYZE_TIPS
+      : AiEvaluatorComponent.FETCH_TIPS;
+    return tips[this.loadingTipIndex % tips.length];
+  }
+
   onUrlChange(): void {
     this.updateProductName();
     this.result = null;
@@ -56,6 +92,8 @@ export class AiEvaluatorComponent implements OnInit {
     this.urlRefreshIsWarn = false;
     this.showDetailExpanded = false;
     this.activeTag = null;
+    this.activeTagSamples = [];
+    this.sourceComments = [];
   }
 
   async refreshFromCurrentTab(): Promise<void> {
@@ -70,9 +108,10 @@ export class AiEvaluatorComponent implements OnInit {
       this.updateProductName();
       this.result = null;
     this.error = null;
-    this.commentFetchHint = null;
     this.showDetailExpanded = false;
       this.activeTag = null;
+    this.activeTagSamples = [];
+    this.sourceComments = [];
       this.urlRefreshHint = 'Đã lấy link trang đang xem';
     } else {
       this.urlRefreshHint = 'Tab hiện tại không phải trang Shopee';
@@ -84,15 +123,29 @@ export class AiEvaluatorComponent implements OnInit {
     this.productName = this.tabUrlService.extractProductName(this.productUrl);
   }
 
-  async analyze(): Promise<void> {
+  analyze(): void {
     if (!this.productUrl || this.loading) return;
+    void this.runAnalyzePipeline();
+  }
 
+  get fetchProgressPercent(): number {
+    if (!this.fetchProgress?.totalPages) return 8;
+    const p = Math.round((this.fetchProgress.pagesFetched ?? 0) * 100 / this.fetchProgress.totalPages);
+    return Math.min(100, Math.max(8, p));
+  }
+
+  private async runAnalyzePipeline(): Promise<void> {
     this.loading = true;
     this.loadingComments = true;
+    this.loadingAnalyze = false;
+    this.fetchProgress = { phase: 'fetch', pagesFetched: 0, totalPages: 0, commentsCount: 0 };
+    this.startLoadingTips();
     this.error = null;
     this.result = null;
     this.showDetailExpanded = false;
     this.activeTag = null;
+    this.activeTagSamples = [];
+    this.sourceComments = [];
 
     const liveUrl = await this.tabUrlService.fetchCurrentShopeeUrl();
     if (liveUrl) {
@@ -100,28 +153,31 @@ export class AiEvaluatorComponent implements OnInit {
       this.updateProductName();
     }
 
-    // Ghim cookie affiliate (bỏ qua nếu chưa cấu hình app-id/secret)
     this.pinAffiliateSilently(this.productUrl);
 
     const comments = await this.shopeeRatings.fetchCommentsForUrl(this.productUrl, {
-      starFilters: this.getActiveStarFilters()
+      starFilters: this.getActiveStarFilters(),
+      onProgress: (p) => {
+        this.fetchProgress = p;
+      }
     });
+
     this.loadingComments = false;
 
-    if (comments.meta?.rcountWithContext) {
-      const n = comments.comments.length;
-      const cap = comments.meta.capped ? ' (giới hạn 500)' : '';
-      this.commentFetchHint = `Đã lấy ${n} comment có chữ${cap}`;
-    } else if (comments.comments.length) {
-      this.commentFetchHint = `Đã lấy ${comments.comments.length} comment có chữ`;
-    }
-
     if (!comments.comments.length) {
+      this.stopLoadingTips();
       this.error = comments.error
         ?? 'Không lấy được comment Shopee. Mở trang sản phẩm trên shopee.vn, bấm ↻ lấy link, F5 trang rồi thử lại.';
       this.loading = false;
+      this.loadingComments = false;
+      this.fetchProgress = null;
       return;
     }
+
+    this.sourceComments = comments.comments;
+    this.loadingAnalyze = true;
+    this.loadingTipIndex = 0;
+    this.fetchProgress = { phase: 'analyze', commentsCount: comments.comments.length };
 
     this.analysisApi.analyze({
       urls: [this.productUrl],
@@ -130,24 +186,53 @@ export class AiEvaluatorComponent implements OnInit {
     }).subscribe({
       next: (res: AnalysisResponse) => {
         this.result = res.products[0] ?? null;
-        this.loading = false;
+        this.finishLoading();
       },
       error: (err) => {
         this.error = err?.error?.message ?? 'Không thể phân tích. Vui lòng thử lại.';
-        this.loading = false;
+        this.finishLoading();
       }
     });
+  }
+
+  private finishLoading(): void {
+    this.stopLoadingTips();
+    this.loading = false;
+    this.loadingAnalyze = false;
+    this.fetchProgress = null;
+  }
+
+  private startLoadingTips(): void {
+    this.stopLoadingTips();
+    this.loadingTipIndex = 0;
+    this.tipTimer = setInterval(() => {
+      this.loadingTipIndex++;
+    }, 3200);
+  }
+
+  private stopLoadingTips(): void {
+    if (this.tipTimer) {
+      clearInterval(this.tipTimer);
+      this.tipTimer = null;
+    }
   }
 
   toggleDetail(): void {
     this.showDetailExpanded = !this.showDetailExpanded;
     if (!this.showDetailExpanded) {
       this.activeTag = null;
+      this.activeTagSamples = [];
     }
   }
 
   selectTag(tag: SmartTag): void {
-    this.activeTag = this.activeTag?.label === tag.label ? null : tag;
+    if (this.activeTag?.label === tag.label) {
+      this.activeTag = null;
+      this.activeTagSamples = [];
+      return;
+    }
+    this.activeTag = tag;
+    this.activeTagSamples = buildTagSampleList(tag, this.sourceComments);
   }
 
   getTrustLabel(): string {
@@ -213,12 +298,10 @@ export class AiEvaluatorComponent implements OnInit {
     } else {
       this.selectedStars = [...this.selectedStars, star].sort((a, b) => a - b);
     }
-    this.commentFetchHint = null;
   }
 
   selectAllStars(): void {
     this.selectedStars = [1, 2, 3, 4, 5];
-    this.commentFetchHint = null;
   }
 
   private getActiveStarFilters(): number[] {

@@ -87,6 +87,184 @@
   color: $text-muted;
 }
 
+.fetch-progress-card {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: $radius-md;
+  background: $bg-page;
+  border: 1px solid $border-light;
+}
+
+.loading-experience {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: $radius-lg;
+  background: linear-gradient(145deg, rgba(238, 77, 45, 0.06), rgba(255, 255, 255, 0.9));
+  border: 1px solid rgba(238, 77, 45, 0.15);
+  animation: loadingFadeIn 0.35s ease;
+}
+
+@keyframes loadingFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.loading-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 14px;
+}
+
+.loading-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.4;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+
+  &.active {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+
+  &.done {
+    opacity: 0.65;
+  }
+
+  .step-icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .step-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: $text-secondary;
+    text-align: center;
+  }
+
+  &.active .step-label {
+    color: $shopee-orange;
+  }
+}
+
+.step-connector {
+  width: 28px;
+  height: 2px;
+  margin: 0 4px 18px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.1);
+  transition: background 0.3s ease;
+
+  &.active {
+    background: $shopee-gradient;
+  }
+}
+
+.loading-tip-bubble {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border-radius: $radius-md;
+  background: $bg-card;
+  border: 1px solid $border-light;
+  box-shadow: $shadow-sm;
+  min-height: 52px;
+}
+
+.tip-sparkle {
+  font-size: 16px;
+  line-height: 1.4;
+  animation: tipPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes tipPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.85; }
+}
+
+.tip-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: $text-primary;
+  font-weight: 500;
+  animation: tipSwap 0.4s ease;
+}
+
+@keyframes tipSwap {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.loading-progress-meta {
+  margin: 8px 0 0;
+  font-size: 10px;
+  color: $text-muted;
+  text-align: center;
+}
+
+.analyze-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.analyze-progress-indeterminate {
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: $shopee-gradient;
+  animation: indeterminateSlide 1.4s ease-in-out infinite;
+}
+
+@keyframes indeterminateSlide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+.fetch-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-secondary;
+  margin-bottom: 8px;
+}
+
+.fetch-progress-pct {
+  font-size: 10px;
+  color: $shopee-orange;
+}
+
+.fetch-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.fetch-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: $shopee-gradient;
+  transition: width 0.25s ease;
+}
+
+.fetch-progress-sub {
+  margin: 8px 0 0;
+  font-size: 10px;
+  color: $text-muted;
+  line-height: 1.4;
+}
+
 .url-input-row {
   display: flex;
   gap: 8px;
@@ -505,6 +683,24 @@
     margin-bottom: 6px;
   }
 
+  .tag-samples-list {
+    max-height: 240px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(15, 23, 42, 0.2) transparent;
+
+    &::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(15, 23, 42, 0.18);
+      border-radius: 999px;
+    }
+  }
+
   blockquote {
     margin: 0 0 6px;
     padding: 8px 10px;
@@ -514,7 +710,12 @@
     font-size: 11px;
     color: $text-secondary;
     font-style: italic;
-    line-height: 1.45;
+    line-height: 1.5;
+    word-break: break-word;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
   }
 }
 

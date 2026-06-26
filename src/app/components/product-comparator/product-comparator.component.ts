@@ -8,6 +8,7 @@ import { AffiliateApiService } from '../../services/affiliate-api.service';
 import { AffiliateSilentService } from '../../services/affiliate-silent.service';
 import { AffiliatePurchaseService } from '../../services/affiliate-purchase.service';
 import { AnalysisResponse, ProductAnalysis } from '../../models/analysis.model';
+import { CommentFetchProgress } from '../../models/ratings-fetch.model';
 
 @Component({
   selector: 'mca-product-comparator',
@@ -26,6 +27,7 @@ export class ProductComparatorComponent implements OnInit {
   result: AnalysisResponse | null = null;
   error: string | null = null;
   selectedStars: number[] = [1, 2, 3, 4, 5];
+  fetchProgress: CommentFetchProgress | null = null;
 
   constructor(
     private tabUrlService: TabUrlService,
@@ -56,30 +58,43 @@ export class ProductComparatorComponent implements OnInit {
     }
   }
 
-  async compare(): Promise<void> {
+  compare(): void {
     if (!this.urlA || !this.urlB || this.loading) return;
+    void this.runCompare();
+  }
 
+  private async runCompare(): Promise<void> {
     this.loading = true;
     this.loadingComments = true;
     this.error = null;
     this.result = null;
+    this.fetchProgress = { phase: 'fetch', pagesFetched: 0, totalPages: 0, commentsCount: 0 };
 
     this.pinAffiliateSilently(this.urlA);
     this.pinAffiliateSilently(this.urlB);
 
-    const starFilters = this.selectedStars.length >= 5 ? undefined : { starFilters: [...this.selectedStars] };
+    const opts = {
+      starFilters: this.selectedStars.length >= 5 ? undefined : [...this.selectedStars],
+      onProgress: (p: CommentFetchProgress) => { this.fetchProgress = p; }
+    };
+    const starOpts = this.selectedStars.length >= 5
+      ? { onProgress: opts.onProgress }
+      : { starFilters: opts.starFilters, onProgress: opts.onProgress };
+
     const [resultA, resultB] = await Promise.all([
-      this.shopeeRatings.fetchCommentsForUrl(this.urlA, starFilters),
-      this.shopeeRatings.fetchCommentsForUrl(this.urlB, starFilters)
+      this.shopeeRatings.fetchCommentsForUrl(this.urlA, starOpts),
+      this.shopeeRatings.fetchCommentsForUrl(this.urlB, starOpts)
     ]);
     const commentsA = resultA.comments;
     const commentsB = resultB.comments;
     this.loadingComments = false;
+    this.fetchProgress = { phase: 'analyze', commentsCount: commentsA.length + commentsB.length };
 
     if (!commentsA.length && !commentsB.length) {
       this.error = resultA.error ?? resultB.error
         ?? 'Không lấy được comment. Mở trang sản phẩm Shopee, F5 trang rồi thử lại.';
       this.loading = false;
+      this.fetchProgress = null;
       return;
     }
 
@@ -91,10 +106,12 @@ export class ProductComparatorComponent implements OnInit {
       next: (res) => {
         this.result = res;
         this.loading = false;
+        this.fetchProgress = null;
       },
       error: (err) => {
         this.error = err?.error?.message ?? 'Không thể so sánh. Vui lòng thử lại.';
         this.loading = false;
+        this.fetchProgress = null;
       }
     });
   }

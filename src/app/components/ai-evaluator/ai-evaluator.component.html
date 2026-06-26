@@ -61,8 +61,44 @@
       <p class="star-filter-hint">Chỉ lấy review có bình luận chữ · tối đa 500</p>
     </div>
 
-    @if (commentFetchHint) {
-      <p class="url-refresh-hint">{{ commentFetchHint }}</p>
+    @if (loading) {
+      <div class="loading-experience">
+        <div class="loading-steps">
+          <div class="loading-step" [class.active]="loadingComments" [class.done]="loadingAnalyze">
+            <span class="step-icon">📥</span>
+            <span class="step-label">Thu thập review</span>
+          </div>
+          <div class="step-connector" [class.active]="loadingAnalyze"></div>
+          <div class="loading-step" [class.active]="loadingAnalyze">
+            <span class="step-icon">🧠</span>
+            <span class="step-label">AI phân tích</span>
+          </div>
+        </div>
+
+        <div class="loading-tip-bubble">
+          <span class="tip-sparkle">✨</span>
+          <p class="tip-text">{{ currentLoadingTip }}</p>
+        </div>
+
+        @if (loadingComments) {
+          <div class="fetch-progress-track">
+            <div class="fetch-progress-fill" [style.width.%]="fetchProgressPercent"></div>
+          </div>
+          @if (fetchProgress?.totalPages) {
+            <p class="loading-progress-meta">
+              {{ fetchProgress?.pagesFetched ?? 0 }}/{{ fetchProgress?.totalPages }} trang
+              @if (fetchProgress?.commentsCount) {
+                · {{ fetchProgress?.commentsCount }} review
+              }
+            </p>
+          }
+        } @else if (loadingAnalyze) {
+          <div class="analyze-progress-track">
+            <div class="analyze-progress-indeterminate"></div>
+          </div>
+          <p class="loading-progress-meta">Đang tổng hợp điểm số và bộ lọc thông minh…</p>
+        }
+      </div>
     }
 
     <button
@@ -72,7 +108,15 @@
       (click)="analyze()">
       @if (loading) {
         <span class="spinner"></span>
-        <span>{{ loadingComments ? 'Đang lấy comment Shopee...' : 'Đang phân tích bằng AI...' }}</span>
+        <span>
+          @if (loadingComments) {
+            Đang quét comment…
+          } @else if (loadingAnalyze) {
+            Đang phân tích AI…
+          } @else {
+            Đang xử lý…
+          }
+        </span>
       } @else {
         <span class="btn-icon">⚡</span>
         <span>Phân Tích Bằng AI</span>
@@ -203,12 +247,16 @@
               </div>
             </div>
           }
-          @if (activeTag?.sampleComments?.length) {
+          @if (activeTag && activeTagSamples.length) {
             <div class="tag-samples">
-              <span class="samples-label">Comment thực tế về "{{ activeTag!.label }}":</span>
-              @for (sample of activeTag!.sampleComments; track sample) {
-                <blockquote>"{{ sample }}"</blockquote>
-              }
+              <span class="samples-label">
+                Comment thực tế về "{{ activeTag.label }}" ({{ activeTagSamples.length }}):
+              </span>
+              <div class="tag-samples-list">
+                @for (sample of activeTagSamples; track $index) {
+                  <blockquote>"{{ sample }}"</blockquote>
+                }
+              </div>
             </div>
           }
         </div>

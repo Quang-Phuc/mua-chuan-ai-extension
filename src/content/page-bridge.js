@@ -1,6 +1,5 @@
 /**
- * MAIN world — paginate get_ratings (filter=1: chỉ đánh giá có chữ).
- * type: 0 = tất cả sao, 1–5 = lọc theo số sao.
+ * MAIN world — paginate get_ratings (filter=1), fetch song song + báo tiến trình.
  */
 (function () {
   if (window.__mcaPageBridge) return;
@@ -11,6 +10,7 @@
   const MAX_COMMENTS = 500;
   const MAX_PAGES = Math.ceil(MAX_COMMENTS / PAGE_SIZE);
   const FILTER_WITH_TEXT = 1;
+  const FETCH_CONCURRENCY = 4;
 
   function getCsrf() {
     const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
@@ -70,9 +70,15 @@
     return false;
   }
 
-  /** Chỉ lấy comment có chữ thật */
   function extractCommentText(r) {
     return (r.comment || r.comment_region || r.cmt || r.review || '').trim();
+  }
+
+  function emitProgress(requestId, payload) {
+    if (!requestId) return;
+    document.dispatchEvent(new CustomEvent('mca-browser-comments-progress', {
+      detail: Object.assign({ requestId: requestId, phase: 'fetch' }, payload)
+    }));
   }
 
   function normalizeStarFilters(starFilters) {
@@ -148,7 +154,40 @@
     });
   }
 
-  async function fetchCommentStream(shopId, itemId, referer, opts, maxComments) {
+  async function fetchRemainingPages(shopId, itemId, ref, streamOpts, offsets, comments, cap, requestId, pagesFetched, totalPages) {
+    for (let i = 0; i < offsets.length && comments.length < cap; i += FETCH_CONCURRENCY) {
+      const batch = offsets.slice(i, i + FETCH_CONCURRENCY);
+      const pages = await Promise.all(
+        batch.map(function (off) {
+          return fetchRatingsPage(shopId, itemId, off, ref, streamOpts);
+        })
+      );
+
+      let shouldStop = false;
+      pages.forEach(function (page) {
+        if (shouldStop) return;
+        if (!page.ratings.length) {
+          shouldStop = true;
+          return;
+        }
+        appendTextComments(comments, page.ratings);
+        if (comments.length >= cap) shouldStop = true;
+        if (page.data.has_more !== true || page.ratings.length < PAGE_SIZE) shouldStop = true;
+      });
+
+      pagesFetched += batch.length;
+      emitProgress(requestId, {
+        pagesFetched: pagesFetched,
+        totalPages: totalPages,
+        commentsCount: comments.length
+      });
+
+      if (shouldStop || comments.length >= cap) break;
+    }
+    return pagesFetched;
+  }
+
+  async function fetchCommentStream(shopId, itemId, referer, opts, maxComments, requestId) {
     const ref = productReferer(shopId, itemId, referer);
     const streamOpts = {
       filter: FILTER_WITH_TEXT,
@@ -156,25 +195,30 @@
     };
     const cap = Math.min(maxComments || MAX_COMMENTS, MAX_COMMENTS);
     const comments = [];
-    let pagesFetched = 0;
 
     const first = await fetchRatingsPage(shopId, itemId, 0, ref, streamOpts);
-    pagesFetched++;
     appendTextComments(comments, first.ratings);
 
     const plan = buildFetchPlan(first.data, streamOpts);
-    let offset = PAGE_SIZE;
+    let pagesFetched = 1;
     const maxPages = Math.min(plan.totalPages, Math.ceil(cap / PAGE_SIZE));
 
-    while (pagesFetched < maxPages && comments.length < cap) {
-      const page = await fetchRatingsPage(shopId, itemId, offset, ref, streamOpts);
-      pagesFetched++;
-      if (!page.ratings.length) break;
-      appendTextComments(comments, page.ratings);
-      if (comments.length >= cap) break;
-      if (page.data.has_more !== true) break;
-      if (page.ratings.length < PAGE_SIZE) break;
-      offset += PAGE_SIZE;
+    emitProgress(requestId, {
+      pagesFetched: pagesFetched,
+      totalPages: maxPages,
+      commentsCount: comments.length
+    });
+
+    const offsets = [];
+    for (let o = PAGE_SIZE; o < maxPages * PAGE_SIZE; o += PAGE_SIZE) {
+      offsets.push(o);
+    }
+
+    if (offsets.length && comments.length < cap) {
+      pagesFetched = await fetchRemainingPages(
+        shopId, itemId, ref, streamOpts, offsets,
+        comments, cap, requestId, pagesFetched, maxPages
+      );
     }
 
     return {
@@ -185,6 +229,7 @@
   }
 
   async function fetchAllCommentsInBrowser(shopId, itemId, referer, options) {
+    const requestId = options && options.requestId;
     const ref = productReferer(shopId, itemId, referer || location.href);
     const stars = normalizeStarFilters(options && options.starFilters);
     const allComments = [];
@@ -192,7 +237,7 @@
     let meta = {};
 
     if (!stars.length) {
-      const stream = await fetchCommentStream(shopId, itemId, ref, { type: 0 }, MAX_COMMENTS);
+      const stream = await fetchCommentStream(shopId, itemId, ref, { type: 0 }, MAX_COMMENTS, requestId);
       if (!stream.comments.length) {
         throw new Error('Không có đánh giá có chữ — thử bỏ bớt lọc sao');
       }
@@ -213,7 +258,7 @@
     const perStar = Math.ceil(MAX_COMMENTS / stars.length);
     for (let i = 0; i < stars.length; i++) {
       const star = stars[i];
-      const stream = await fetchCommentStream(shopId, itemId, ref, { type: star }, perStar);
+      const stream = await fetchCommentStream(shopId, itemId, ref, { type: star }, perStar, requestId);
       pagesFetched += stream.pagesFetched;
       stream.comments.forEach(function (c) {
         if (allComments.length < MAX_COMMENTS) {
@@ -251,7 +296,7 @@
       detail.shopId,
       detail.itemId,
       detail.referer || location.href,
-      { starFilters: detail.starFilters }
+      { starFilters: detail.starFilters, requestId: detail.requestId }
     )
       .then(function (result) {
         document.dispatchEvent(new CustomEvent('mca-browser-comments-response', {

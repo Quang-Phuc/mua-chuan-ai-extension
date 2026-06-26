@@ -41,17 +41,17 @@
     return null;
   }
 
-  async function fetchCommentsViaPageBridge(shopId, itemId, referer, starFilters) {
+  async function fetchCommentsViaPageBridge(shopId, itemId, referer, starFilters, requestId) {
     await waitForPageBridge(8000);
     return new Promise((resolve, reject) => {
-      const requestId = Math.random().toString(36).slice(2);
+      const rid = requestId || Math.random().toString(36).slice(2);
       const timer = setTimeout(() => {
         document.removeEventListener('mca-browser-comments-response', handler);
         reject(new Error('Hết thời gian chờ lấy comment (quá 2 phút)'));
       }, FETCH_TIMEOUT_MS);
 
       function handler(ev) {
-        if (ev.detail?.requestId !== requestId) return;
+        if (ev.detail?.requestId !== rid) return;
         clearTimeout(timer);
         document.removeEventListener('mca-browser-comments-response', handler);
         resolve(ev.detail);
@@ -60,7 +60,7 @@
       document.addEventListener('mca-browser-comments-response', handler);
       document.dispatchEvent(new CustomEvent('mca-browser-fetch-comments', {
         detail: {
-          requestId,
+          requestId: rid,
           shopId: Number(shopId),
           itemId: Number(itemId),
           referer: referer || window.location.href,
@@ -194,6 +194,19 @@
     document.body.appendChild(root);
   }
 
+  document.addEventListener('mca-browser-comments-progress', function (ev) {
+    const d = ev.detail;
+    if (!d?.requestId || typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return;
+    chrome.runtime.sendMessage({
+      action: 'comments-fetch-progress',
+      requestId: d.requestId,
+      phase: d.phase || 'fetch',
+      pagesFetched: d.pagesFetched,
+      totalPages: d.totalPages,
+      commentsCount: d.commentsCount
+    });
+  });
+
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.action === 'toggle-sidebar') {
       toggleSidebar();
@@ -205,7 +218,7 @@
       const sid = resolved?.shopId || Number(msg.shopId);
       const iid = resolved?.itemId || Number(msg.itemId);
       const ref = msg.referer || window.location.href;
-      fetchCommentsViaPageBridge(sid, iid, ref, msg.starFilters)
+      fetchCommentsViaPageBridge(sid, iid, ref, msg.starFilters, msg.requestId)
         .then((result) => sendResponse({
           ok: !!result.ok,
           comments: result.comments || [],
