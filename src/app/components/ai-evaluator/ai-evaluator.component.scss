@@ -567,7 +567,21 @@
   background: $shopee-gradient;
   border-radius: $radius-pill;
   transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 0 8px rgba(238, 77, 45, 0.3);
+
+  &.bar-positive {
+    background: linear-gradient(90deg, $score-green, #34D399);
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
+  }
+
+  &.bar-negative {
+    background: linear-gradient(90deg, $score-red, #F87171);
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.3);
+  }
+
+  &.bar-neutral {
+    background: $shopee-gradient;
+    box-shadow: 0 0 8px rgba(238, 77, 45, 0.3);
+  }
 }
 
 .topic-summary {

@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Mua Chuẩn AI",
+  "version": "1.0.0",
+  "description": "Phân tích & so sánh sản phẩm Shopee bằng AI",
+  "permissions": ["tabs", "activeTab", "storage", "scripting"],
+  "host_permissions": [
+    "https://shopee.vn/*",
+    "https://*.shopee.vn/*",
+    "https://s.shopee.vn/*",
+    "https://shope.ee/*",
+    "http://localhost:8080/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://shopee.vn/*", "https://*.shopee.vn/*"],
+      "js": ["content-script.js"],
+      "css": ["content-styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Mua Chuẩn AI",
+    "default_popup": "index.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["index.html", "main*.js", "polyfills*.js", "runtime*.js", "styles*.css", "assets/*"],
+      "matches": ["https://shopee.vn/*", "https://*.shopee.vn/*"]
+    }
+  ]
+}
