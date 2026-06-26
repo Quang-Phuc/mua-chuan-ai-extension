@@ -1,10 +1,14 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TabUrlService } from '../../services/tab-url.service';
 import { GroupBuyingApiService } from '../../services/group-buying-api.service';
 import { AffiliatePurchaseService } from '../../services/affiliate-purchase.service';
+import { ShopeeBundleDealService } from '../../services/shopee-bundle-deal.service';
+import { SidebarNavService } from '../../services/sidebar-nav.service';
 import { BundleDealDetect, CampaignLobby } from '../../models/group-buying.model';
+import { buildShareUrl, formatVnd } from '../../utils/group-buy.utils';
+import { environment } from '../../../environments/environment';
 
 type ViewMode = 'create' | 'lobby';
 
@@ -16,6 +20,8 @@ type ViewMode = 'create' | 'lobby';
   styleUrl: './group-buying.component.scss'
 })
 export class GroupBuyingComponent implements OnInit {
+  @Input() lobbyOnly = false;
+
   view: ViewMode = 'create';
   productUrl = '';
   productName: string | null = null;
@@ -44,23 +50,42 @@ export class GroupBuyingComponent implements OnInit {
   constructor(
     private tabUrl: TabUrlService,
     private groupBuyApi: GroupBuyingApiService,
-    private affiliatePurchase: AffiliatePurchaseService
+    private affiliatePurchase: AffiliatePurchaseService,
+    private bundleDeal: ShopeeBundleDealService,
+    private nav: SidebarNavService
   ) {}
 
   async ngOnInit(): Promise<void> {
-    const hashId = this.parseCampaignIdFromHash();
-    if (hashId) {
-      this.loadLobby(hashId);
+    const campaignId = this.parseCampaignId();
+    if (campaignId) {
+      this.loadLobby(campaignId);
       return;
     }
-    this.productUrl = await this.tabUrl.getDefaultProductUrl();
-    this.productName = this.tabUrl.extractProductName(this.productUrl);
+
+    const prefill = this.nav.groupBuyPrefillUrl();
+    if (prefill) {
+      this.productUrl = prefill;
+      this.productName = this.tabUrl.extractProductName(prefill);
+      const autoDetect = this.nav.groupBuyAutoDetect();
+      this.nav.groupBuyPrefillUrl.set(null);
+      this.nav.groupBuyAutoDetect.set(false);
+      if (autoDetect) {
+        await this.startDetect();
+      }
+      return;
+    }
+
+    if (!this.lobbyOnly) {
+      this.productUrl = await this.tabUrl.getDefaultProductUrl();
+      this.productName = this.tabUrl.extractProductName(this.productUrl);
+    }
   }
 
-  private parseCampaignIdFromHash(): number | null {
-    const hash = window.location.hash || '';
-    const m = hash.match(/keo\/(\d+)/i);
-    return m ? Number(m[1]) : null;
+  private parseCampaignId(): number | null {
+    const pathMatch = window.location.pathname.match(/\/keo\/(\d+)/i);
+    if (pathMatch) return Number(pathMatch[1]);
+    const hashMatch = (window.location.hash || '').match(/keo\/(\d+)/i);
+    return hashMatch ? Number(hashMatch[1]) : null;
   }
 
   async refreshUrl(): Promise<void> {
@@ -72,34 +97,48 @@ export class GroupBuyingComponent implements OnInit {
     }
   }
 
-  startDetect(): void {
+  async startDetect(): Promise<void> {
     if (!this.productUrl || this.detecting) return;
     this.error = null;
     this.detecting = true;
     this.isAutoDetectSuccess = false;
     this.autoDetectMessage = null;
+    this.detected = null;
+
+    const browserDeal = await this.bundleDeal.detectForUrl(this.productUrl);
+    if (browserDeal?.success) {
+      this.applyDetectResult(browserDeal);
+      this.detecting = false;
+      return;
+    }
 
     this.groupBuyApi.detect(this.productUrl).subscribe({
       next: (res) => {
         this.detecting = false;
-        this.detected = res;
-        if (res.success) {
-          this.isAutoDetectSuccess = true;
-          this.manualTargetQty = res.targetQuantity || 3;
-          this.manualDiscount = res.discountInfo || '15%';
-          this.manualUnitPrice = res.unitPrice || 200000;
-          this.autoDetectMessage =
-            `Hệ thống tự động phát hiện mã giảm ${res.discountInfo} khi gom đủ ${res.targetQuantity} người!`;
-        } else {
-          this.isAutoDetectSuccess = false;
-          this.autoDetectMessage = null;
-        }
+        this.applyDetectResult(res);
       },
       error: () => {
         this.detecting = false;
         this.isAutoDetectSuccess = false;
+        this.detected = { success: false, targetQuantity: 0, discountInfo: '', unitPrice: 0, productName: '' };
       }
     });
+  }
+
+  private applyDetectResult(res: BundleDealDetect): void {
+    this.detected = res;
+    if (res.success) {
+      this.isAutoDetectSuccess = true;
+      this.manualTargetQty = res.targetQuantity || 3;
+      this.manualDiscount = res.discountInfo || '15%';
+      if (res.unitPrice > 0) this.manualUnitPrice = res.unitPrice;
+      if (res.productName) this.productName = res.productName;
+      this.autoDetectMessage =
+        `Hệ thống tự động phát hiện mã giảm ${res.discountInfo} khi gom đủ ${res.targetQuantity} người!`;
+    } else {
+      this.isAutoDetectSuccess = false;
+      this.autoDetectMessage = null;
+    }
   }
 
   activateCampaign(): void {
@@ -176,11 +215,36 @@ export class GroupBuyingComponent implements OnInit {
   }
 
   copyShareLink(): void {
-    if (!this.lobby?.shareUrl) return;
-    navigator.clipboard?.writeText(this.lobby.shareUrl).then(() => {
+    const url = this.displayShareUrl;
+    if (!url) return;
+    navigator.clipboard?.writeText(url).then(() => {
       this.copyHint = 'Đã copy link chia sẻ!';
       setTimeout(() => (this.copyHint = null), 2000);
     });
+  }
+
+  async shareNative(): Promise<void> {
+    const url = this.displayShareUrl;
+    if (!url || !this.lobby) return;
+    const payload = {
+      title: `Kèo mua chung: ${this.lobby.productName}`,
+      text: this.lobby.highlightMessage,
+      url
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(payload);
+      } catch {
+        this.copyShareLink();
+      }
+    } else {
+      this.copyShareLink();
+    }
+  }
+
+  get displayShareUrl(): string {
+    if (!this.lobby) return '';
+    return buildShareUrl(environment.shareBaseUrl, this.lobby.campaignId);
   }
 
   backToCreate(): void {
@@ -190,7 +254,7 @@ export class GroupBuyingComponent implements OnInit {
   }
 
   formatVnd(amount: number): string {
-    return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
+    return formatVnd(amount);
   }
 
   progressBlocks(): string {
@@ -201,9 +265,16 @@ export class GroupBuyingComponent implements OnInit {
   }
 
   private showLobby(lobby: CampaignLobby): void {
-    this.lobby = lobby;
+    this.lobby = {
+      ...lobby,
+      shareUrl: buildShareUrl(environment.shareBaseUrl, lobby.campaignId)
+    };
     this.view = 'lobby';
-    window.location.hash = `keo/${lobby.campaignId}`;
+    if (this.lobbyOnly || /\/keo\/\d+/i.test(window.location.pathname)) {
+      window.history.replaceState(null, '', `/keo/${lobby.campaignId}`);
+    } else {
+      window.location.hash = `keo/${lobby.campaignId}`;
+    }
   }
 
   private resetCreateState(): void {

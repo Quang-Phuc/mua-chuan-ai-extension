@@ -260,8 +260,17 @@
 </div>
 
 @if (result?.affiliateUrl) {
-  <button class="affiliate-btn" (click)="openAffiliate()">
-    <span class="affiliate-shine"></span>
-    <span class="affiliate-text">🛒 Mua Trên Shopee PC</span>
-  </button>
+  <div class="affiliate-footer">
+    <div class="group-buy-hint manual">
+      <p>Có ưu đãi gom đơn / mua chung? Sang tab Mua Chung để quét và tạo kèo.</p>
+      <button type="button" class="group-buy-btn outline" (click)="openCreateGroupBuy()">
+        👥 Tạo Kèo Mua Chung
+      </button>
+    </div>
+
+    <button class="affiliate-btn" (click)="openAffiliate()">
+      <span class="affiliate-shine"></span>
+      <span class="affiliate-text">🛒 Mua Trên Shopee PC</span>
+    </button>
+  </div>
 }

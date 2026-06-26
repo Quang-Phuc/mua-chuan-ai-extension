@@ -4,88 +4,130 @@
 (function () {
   const SIDEBAR_WIDTH = 380;
   const MAX_COMMENTS = 300;
-  const PAGE_SIZE = 50;
   let isOpen = false;
   let sidebar = null;
+
+  function waitForPageBridge(timeoutMs) {
+    return new Promise((resolve, reject) => {
+      if (document.documentElement.dataset.mcaBridgeReady) {
+        resolve();
+        return;
+      }
+      const deadline = Date.now() + (timeoutMs || 5000);
+      const tick = setInterval(() => {
+        if (document.documentElement.dataset.mcaBridgeReady) {
+          clearInterval(tick);
+          resolve();
+          return;
+        }
+        if (Date.now() >= deadline) {
+          clearInterval(tick);
+          reject(new Error('Page bridge chưa sẵn sàng — F5 trang Shopee.'));
+        }
+      }, 50);
+    });
+  }
+
+  function parseProductIdsFromPage() {
+    const href = window.location.href;
+    const fromUrl = href.match(/[-.]i\.(\d+)\.(\d+)/i);
+    if (fromUrl) {
+      return { shopId: Number(fromUrl[1]), itemId: Number(fromUrl[2]) };
+    }
+    const product = href.match(/\/product\/(\d+)\/(\d+)/i);
+    if (product) {
+      return { shopId: Number(product[1]), itemId: Number(product[2]) };
+    }
+    return null;
+  }
+
+  async function fetchCommentsViaPageBridge(shopId, itemId, referer, maxComments) {
+    await waitForPageBridge(5000);
+    return new Promise((resolve, reject) => {
+      const requestId = Math.random().toString(36).slice(2);
+      const timer = setTimeout(() => {
+        document.removeEventListener('mca-browser-comments-response', handler);
+        reject(new Error('Hết thời gian chờ lấy comment'));
+      }, 60000);
+
+      function handler(ev) {
+        if (ev.detail?.requestId !== requestId) return;
+        clearTimeout(timer);
+        document.removeEventListener('mca-browser-comments-response', handler);
+        resolve(ev.detail);
+      }
+
+      document.addEventListener('mca-browser-comments-response', handler);
+      document.dispatchEvent(new CustomEvent('mca-browser-fetch-comments', {
+        detail: {
+          requestId,
+          shopId: Number(shopId),
+          itemId: Number(itemId),
+          referer: referer || window.location.href,
+          maxComments: maxComments || MAX_COMMENTS
+        }
+      }));
+    });
+  }
 
   function getCsrfToken() {
     const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
     return match ? decodeURIComponent(match[1]) : '';
   }
 
-  async function fetchRatingsPage(shopId, itemId, offset) {
-    const params = new URLSearchParams({
-      filter: '0',
-      flag: '1',
-      limit: String(PAGE_SIZE),
-      offset: String(offset),
-      type: '0',
-      exclude_filter: '1',
-      filter_size: '0',
-      fold_filter: '0',
-      relevant_reviews: 'false',
-      request_source: '2',
-      need_translation: '1',
-      shopid: String(shopId),
-      itemid: String(itemId),
-      fe_toggle: '[2,3]',
-      preferred_item_shop_id: String(shopId),
-      preferred_item_item_id: String(itemId),
-      preferred_item_include_type: '1',
-      tag_filter: '',
-      variation_filters: ''
-    });
+  function toVnd(raw) {
+    if (!raw) return 0;
+    if (raw > 100000000) return Math.round(raw / 100000);
+    return raw;
+  }
 
+  async function fetchBundleDeal(shopId, itemId) {
     const headers = {
       Accept: 'application/json',
       'X-API-Source': 'pc',
-      'X-Requested-With': 'XMLHttpRequest',
       'X-Shopee-Language': 'vi',
       Referer: window.location.href
     };
-
     const csrf = getCsrfToken();
-    if (csrf) {
-      headers['X-CSRFToken'] = csrf;
-    }
+    if (csrf) headers['X-CSRFToken'] = csrf;
 
     const res = await fetch(
-      'https://shopee.vn/api/v2/item/get_ratings?' + params.toString(),
+      `https://shopee.vn/api/v4/item/get?itemid=${itemId}&shopid=${shopId}`,
       { credentials: 'include', headers }
     );
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    const data = json?.data ?? json;
 
-    if (!res.ok) {
-      throw new Error('HTTP ' + res.status);
-    }
-    return res.json();
-  }
-
-  async function fetchAllRatings(shopId, itemId) {
-    const comments = [];
-    let offset = 0;
-
-    while (comments.length < MAX_COMMENTS) {
-      const json = await fetchRatingsPage(shopId, itemId, offset);
-      const ratings = json?.data?.ratings ?? [];
-
-      if (!ratings.length) {
-        break;
-      }
-
-      for (const r of ratings) {
-        const text = (r.comment || '').trim();
-        if (text) {
-          comments.push(text);
-        }
-      }
-
-      if (ratings.length < PAGE_SIZE) {
-        break;
-      }
-      offset += PAGE_SIZE;
+    let bundleDeal = null;
+    if (data?.bundle_deal_info?.bundle_deal) {
+      bundleDeal = data.bundle_deal_info.bundle_deal;
+    } else if (data?.bundle_deal) {
+      bundleDeal = data.bundle_deal;
     }
 
-    return comments.slice(0, MAX_COMMENTS);
+    const productName = data?.name || data?.item?.title || 'Sản phẩm Shopee';
+    const unitPrice = toVnd(data?.price ?? data?.price_min ?? data?.item?.price ?? 0);
+
+    if (!bundleDeal || !bundleDeal.bundle_deal_id || bundleDeal.bundle_deal_id <= 0) {
+      return { success: false, targetQuantity: 0, discountInfo: '', unitPrice, productName };
+    }
+
+    const minAmount = bundleDeal.min_amount || bundleDeal.rule_min_amount || 3;
+    let discountInfo = '';
+    if (bundleDeal.discount_value) {
+      discountInfo = bundleDeal.discount_percentage === 1
+        ? bundleDeal.discount_value + '%'
+        : (bundleDeal.discount_value <= 100 ? bundleDeal.discount_value + '%' : bundleDeal.discount_value + 'đ');
+    }
+
+    return {
+      success: true,
+      targetQuantity: minAmount,
+      discountInfo,
+      unitPrice,
+      productName
+    };
   }
 
   function openSidebar() {
@@ -158,10 +200,24 @@
       sendResponse({ ok: true, isOpen });
       return true;
     }
-    if (msg.action === 'fetch-ratings') {
-      fetchAllRatings(msg.shopId, msg.itemId)
-        .then((comments) => sendResponse({ ok: true, comments }))
-        .catch((e) => sendResponse({ ok: false, error: e.message, comments: [] }));
+    if (msg.action === 'fetch-comments-browser') {
+      const resolved = parseProductIdsFromPage();
+      const sid = resolved?.shopId || Number(msg.shopId);
+      const iid = resolved?.itemId || Number(msg.itemId);
+      const ref = msg.referer || window.location.href;
+      fetchCommentsViaPageBridge(sid, iid, ref, msg.maxComments)
+        .then((result) => sendResponse({
+          ok: !!result.ok,
+          comments: result.comments || [],
+          error: result.error
+        }))
+        .catch((e) => sendResponse({ ok: false, comments: [], error: e.message }));
+      return true;
+    }
+    if (msg.action === 'fetch-bundle-deal') {
+      fetchBundleDeal(msg.shopId, msg.itemId)
+        .then((deal) => sendResponse({ ok: true, deal }))
+        .catch((e) => sendResponse({ ok: false, deal: { success: false }, error: e.message }));
       return true;
     }
     return false;
@@ -185,17 +241,17 @@
       return;
     }
 
-    if (event.data?.type === 'mca-fetch-ratings') {
+    if (event.data?.type === 'mca-fetch-bundle-deal') {
       const { shopId, itemId } = event.data;
       try {
-        const comments = await fetchAllRatings(shopId, itemId);
+        const deal = await fetchBundleDeal(shopId, itemId);
         event.source.postMessage(
-          { type: 'mca-ratings-result', shopId, itemId, comments },
+          { type: 'mca-bundle-deal-result', shopId, itemId, deal },
           '*'
         );
       } catch (e) {
         event.source.postMessage(
-          { type: 'mca-ratings-error', shopId, itemId, message: e.message || 'Lỗi không xác định' },
+          { type: 'mca-bundle-deal-result', shopId, itemId, deal: { success: false } },
           '*'
         );
       }

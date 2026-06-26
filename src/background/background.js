@@ -1,6 +1,5 @@
 /**
- * Background Service Worker — Luồng Affiliate ngầm (Silent Activation)
- * Mở tab ẩn shope.ee → chờ load xong → đóng sau 300ms để ghim cookie
+ * Background — Affiliate ngầm + proxy lấy comment trên tab Shopee
  */
 const AFFILIATE_TAB_LIFETIME_MS = 300;
 const AFFILIATE_LOAD_TIMEOUT_MS = 8000;
@@ -19,6 +18,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       });
     return true;
   }
+
+  if (message?.action === 'proxy-fetch-comments-browser') {
+    proxyFetchCommentsInBrowser(message.shopId, message.itemId, message.productUrl, message.maxComments)
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, comments: [], error: String(err) }));
+    return true;
+  }
+
+  if (message?.action === 'proxy-fetch-bundle-deal') {
+    proxyFetchBundleDeal(message.shopId, message.itemId, message.productUrl)
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, deal: { success: false }, error: String(err) }));
+    return true;
+  }
+
   return false;
 });
 
@@ -62,8 +76,92 @@ function activateAffiliateSilently(affiliateUrl) {
       };
 
       chrome.tabs.onUpdated.addListener(onUpdated);
-
       const fallbackTimer = setTimeout(finish, AFFILIATE_LOAD_TIMEOUT_MS);
     });
   });
+}
+
+async function findShopeeTab(shopId, itemId, productUrl) {
+  const shop = String(shopId);
+  const item = String(itemId);
+  const patterns = [
+    new RegExp(`[-.]i\\.${shop}\\.${item}(?:[/?#]|$)`, 'i'),
+    new RegExp(`/product/${shop}/${item}(?:[/?#]|$)`, 'i')
+  ];
+
+  const matchesProduct = (url) => url && patterns.some((p) => p.test(url));
+
+  const [activeTabs, shopeeTabs] = await Promise.all([
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }),
+    chrome.tabs.query({ url: ['https://shopee.vn/*', 'https://*.shopee.vn/*'] })
+  ]);
+
+  for (const tab of activeTabs) {
+    if (tab.id && matchesProduct(tab.url)) {
+      return tab.id;
+    }
+  }
+
+  if (productUrl && matchesProduct(productUrl)) {
+    for (const tab of shopeeTabs) {
+      if (tab.id && tab.url === productUrl) {
+        return tab.id;
+      }
+    }
+  }
+
+  for (const tab of shopeeTabs) {
+    if (tab.id && matchesProduct(tab.url)) {
+      return tab.id;
+    }
+  }
+
+  const activeOnShopee = activeTabs.find((t) => t.id && isShopeeUrl(t.url));
+  if (activeOnShopee?.id) {
+    return activeOnShopee.id;
+  }
+
+  return shopeeTabs[0]?.id ?? null;
+}
+
+function isShopeeUrl(url) {
+  return !!url && /https?:\/\/([\w-]+\.)?shopee\.vn/i.test(url);
+}
+
+function sendToTab(tabId, payload) {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(tabId, payload, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve({
+          ok: false,
+          comments: [],
+          error: 'Content script chưa sẵn sàng — F5 tải lại trang Shopee.'
+        });
+        return;
+      }
+      resolve(response ?? { ok: false, comments: [], error: 'Không có phản hồi từ trang Shopee.' });
+    });
+  });
+}
+
+async function proxyFetchCommentsInBrowser(shopId, itemId, productUrl, maxComments) {
+  const tabId = await findShopeeTab(shopId, itemId, productUrl);
+  if (!tabId) {
+    return { ok: false, comments: [], error: 'Không tìm thấy tab Shopee.' };
+  }
+  return sendToTab(tabId, {
+    action: 'fetch-comments-browser',
+    shopId,
+    itemId,
+    referer: productUrl,
+    maxComments: maxComments || 300
+  });
+}
+
+async function proxyFetchBundleDeal(shopId, itemId, productUrl) {
+  const tabId = await findShopeeTab(shopId, itemId, productUrl);
+  if (!tabId) {
+    return { ok: false, deal: { success: false }, error: 'Không tìm thấy tab Shopee.' };
+  }
+  return sendToTab(tabId, { action: 'fetch-bundle-deal', shopId, itemId });
 }

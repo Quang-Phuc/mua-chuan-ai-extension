@@ -204,6 +204,24 @@
   cursor: pointer;
 }
 
+.share-btn {
+  padding: 8px 10px;
+  border: 1.5px solid $border-light;
+  border-radius: $radius-md;
+  background: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+
+  &.copy { color: $shopee-orange; }
+  &.native {
+    background: $shopee-orange;
+    border-color: $shopee-orange;
+    color: #fff;
+  }
+}
+
 .copy-hint {
   font-size: 10px;
   color: $score-green;

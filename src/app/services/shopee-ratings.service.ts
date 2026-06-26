@@ -1,93 +1,65 @@
 import { Injectable } from '@angular/core';
 import { TabUrlService } from './tab-url.service';
+import { RatingsFetchResult } from '../models/ratings-fetch.model';
 
+/** Lấy comment trực tiếp trên tab Shopee (page-bridge), gửi lên BE chỉ khi /analyze */
 @Injectable({ providedIn: 'root' })
 export class ShopeeRatingsService {
-  private readonly FETCH_TIMEOUT_MS = 60000;
-
   constructor(private tabUrlService: TabUrlService) {}
 
-  async fetchCommentsForUrl(productUrl: string): Promise<string[]> {
-    const ids = this.tabUrlService.parseProductIds(productUrl);
-    if (!ids) {
-      return [];
-    }
-    return this.fetchComments(ids.shopId, ids.itemId);
-  }
+  async fetchCommentsForUrl(productUrl: string): Promise<RatingsFetchResult> {
+    let url = productUrl?.trim() ?? '';
+    let ids = this.tabUrlService.parseProductIds(url);
 
-  async fetchComments(shopId: number, itemId: number): Promise<string[]> {
-    if (window.parent !== window) {
-      const fromParent = await this.requestFromParent(shopId, itemId);
-      if (fromParent.length > 0) {
-        return fromParent;
+    if (!ids) {
+      const pageUrl = await this.tabUrlService.fetchCurrentShopeeUrl();
+      if (pageUrl) {
+        ids = this.tabUrlService.parseProductIds(pageUrl);
+        if (ids) url = pageUrl;
       }
     }
-    return this.requestViaContentScript(shopId, itemId);
+
+    if (!ids) {
+      return {
+        comments: [],
+        error: 'Link không có mã sản phẩm. Mở trang Shopee và bấm ↻ lấy link.'
+      };
+    }
+
+    return this.fetchComments(ids.shopId, ids.itemId, url);
   }
 
-  private requestFromParent(shopId: number, itemId: number): Promise<string[]> {
-    return new Promise((resolve) => {
-      const handler = (event: MessageEvent) => {
-        if (
-          event.data?.type === 'mca-ratings-result' &&
-          event.data.shopId === shopId &&
-          event.data.itemId === itemId
-        ) {
-          cleanup();
-          resolve(event.data.comments ?? []);
-        }
-        if (
-          event.data?.type === 'mca-ratings-error' &&
-          event.data.shopId === shopId &&
-          event.data.itemId === itemId
-        ) {
-          cleanup();
-          resolve([]);
-        }
-      };
-
-      const timer = setTimeout(() => {
-        cleanup();
-        resolve([]);
-      }, this.FETCH_TIMEOUT_MS);
-
-      const cleanup = () => {
-        window.removeEventListener('message', handler);
-        clearTimeout(timer);
-      };
-
-      window.addEventListener('message', handler);
-      window.parent.postMessage({ type: 'mca-fetch-ratings', shopId, itemId }, '*');
-    });
+  async fetchComments(shopId: number, itemId: number, productUrl?: string): Promise<RatingsFetchResult> {
+    const comments = await this.fetchCommentsInBrowser(shopId, itemId, productUrl);
+    if (comments.length) {
+      return { comments };
+    }
+    return {
+      comments: [],
+      error: 'Không lấy được comment Shopee. Mở trang sản phẩm, F5, thử lại.'
+    };
   }
 
-  private requestViaContentScript(shopId: number, itemId: number): Promise<string[]> {
+  private fetchCommentsInBrowser(
+    shopId: number,
+    itemId: number,
+    productUrl?: string
+  ): Promise<string[]> {
     return new Promise((resolve) => {
-      if (typeof chrome === 'undefined' || !chrome.tabs?.query) {
+      if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
         resolve([]);
         return;
       }
-
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const tabId = tabs[0]?.id;
-        const tabUrl = tabs[0]?.url ?? '';
-        if (!tabId || !this.tabUrlService.isShopeeUrl(tabUrl)) {
-          resolve([]);
-          return;
-        }
-
-        chrome.tabs.sendMessage(
-          tabId,
-          { action: 'fetch-ratings', shopId, itemId },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              resolve([]);
-              return;
-            }
-            resolve(response?.comments ?? []);
+      chrome.runtime.sendMessage(
+        { action: 'proxy-fetch-comments-browser', shopId, itemId, productUrl, maxComments: 300 },
+        (response) => {
+          if (chrome.runtime.lastError || !response?.ok) {
+            resolve([]);
+            return;
           }
-        );
-      });
+          resolve(response.comments ?? []);
+        }
+      );
     });
   }
 }

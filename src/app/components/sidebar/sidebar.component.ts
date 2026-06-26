@@ -1,10 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AiEvaluatorComponent } from '../ai-evaluator/ai-evaluator.component';
 import { ProductComparatorComponent } from '../product-comparator/product-comparator.component';
 import { GroupBuyingComponent } from '../group-buying/group-buying.component';
-
-type TabId = 'evaluator' | 'comparator' | 'groupbuy';
+import { SidebarNavService, SidebarTabId } from '../../services/sidebar-nav.service';
 
 @Component({
   selector: 'mca-sidebar',
@@ -14,9 +13,15 @@ type TabId = 'evaluator' | 'comparator' | 'groupbuy';
   styleUrl: './sidebar.component.scss'
 })
 export class SidebarComponent {
-  activeTab: TabId = 'evaluator';
+  activeTab: SidebarTabId = 'evaluator';
 
-  setTab(tab: TabId): void {
-    this.activeTab = tab;
+  constructor(private nav: SidebarNavService) {
+    effect(() => {
+      this.activeTab = this.nav.activeTab();
+    });
+  }
+
+  setTab(tab: SidebarTabId): void {
+    this.nav.setTab(tab);
   }
 }

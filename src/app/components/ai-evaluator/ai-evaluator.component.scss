@@ -9,7 +9,7 @@
 .evaluator-content {
   flex: 1;
   padding: 16px;
-  padding-bottom: 88px;
+  padding-bottom: 200px;
 }
 
 /* ── Card base ── */
@@ -678,15 +678,89 @@
 }
 
 /* ── Affiliate CTA ── */
-.affiliate-btn {
+.affiliate-footer {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
+  z-index: 10;
+  box-shadow: 0 -6px 24px rgba(238, 77, 45, 0.2);
+}
+
+.group-buy-hint {
+  background: #fff;
+  border-top: 1px solid $border-light;
+  padding: 10px 14px 8px;
+  font-size: 11px;
+
+  &.loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: $text-muted;
+  }
+
+  &.manual p {
+    margin: 0 0 8px;
+    color: $text-secondary;
+    line-height: 1.4;
+  }
+}
+
+.group-buy-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: $shopee-orange;
+  margin-bottom: 4px;
+}
+
+.group-buy-title {
+  margin: 0 0 2px;
+  font-weight: 800;
+  font-size: 12px;
+  color: $text-primary;
+}
+
+.group-buy-save {
+  margin: 0 0 8px;
+  color: #047857;
+  font-weight: 600;
+}
+
+.group-buy-btn {
+  width: 100%;
+  padding: 9px;
+  border: none;
+  border-radius: $radius-md;
+  background: $shopee-gradient;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 4px;
+
+  &.outline {
+    background: #fff;
+    border: 1.5px solid $shopee-orange;
+    color: $shopee-orange;
+  }
+}
+
+.hint-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(238, 77, 45, 0.2);
+  border-top-color: $shopee-orange;
+  border-radius: 50%;
+  animation: mca-spin 0.7s linear infinite;
+}
+
+.affiliate-btn {
+  position: relative;
+  width: 100%;
   padding: 0;
   border: none;
   cursor: pointer;
-  z-index: 10;
   background: $shopee-gradient;
   overflow: hidden;
 
@@ -713,6 +787,4 @@
     transform: scale(1.01);
     transition: transform 0.2s;
   }
-
-  box-shadow: 0 -6px 24px rgba(238, 77, 45, 0.35);
 }

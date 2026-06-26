@@ -66,14 +66,17 @@ export class ProductComparatorComponent implements OnInit {
     this.pinAffiliateSilently(this.urlA);
     this.pinAffiliateSilently(this.urlB);
 
-    const [commentsA, commentsB] = await Promise.all([
+    const [resultA, resultB] = await Promise.all([
       this.shopeeRatings.fetchCommentsForUrl(this.urlA),
       this.shopeeRatings.fetchCommentsForUrl(this.urlB)
     ]);
+    const commentsA = resultA.comments;
+    const commentsB = resultB.comments;
     this.loadingComments = false;
 
     if (!commentsA.length && !commentsB.length) {
-      this.error = 'Không lấy được comment. Hãy mở extension trên trang shopee.vn (đã đăng nhập).';
+      this.error = resultA.error ?? resultB.error
+        ?? 'Không lấy được comment. Mở trang sản phẩm Shopee, F5 trang rồi thử lại.';
       this.loading = false;
       return;
     }
@@ -108,7 +111,11 @@ export class ProductComparatorComponent implements OnInit {
 
   private pinAffiliateSilently(productUrl: string): void {
     this.affiliateApi.convert(productUrl).subscribe({
-      next: (res) => this.affiliateSilent.activateSilently(res.affiliateUrl),
+      next: (res) => {
+        if (res.configured && res.affiliateUrl) {
+          this.affiliateSilent.activateSilently(res.affiliateUrl);
+        }
+      },
       error: () => {}
     });
   }

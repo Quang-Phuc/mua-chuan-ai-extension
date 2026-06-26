@@ -26,18 +26,18 @@
         <div class="alert success">{{ autoDetectMessage }}</div>
       }
 
-      @if (!detecting && !isAutoDetectSuccess && detected && !detected.success) {
+      @if (!detecting && detected && !isAutoDetectSuccess) {
         <div class="alert warn">
-          AI không tìm thấy mã gom đơn tự động. Vui lòng nhập nhanh số lượng và % giảm giá của Shop bạn nhìn thấy.
+          AI không tìm thấy mã gom đơn tự động. Nhập tay số lượng và ưu đãi shop bạn thấy trên trang.
         </div>
       }
 
-      @if (detected && !detected.success) {
+      @if (!detecting && detected && !isAutoDetectSuccess) {
         <div class="fallback-form">
-            <label>Số lượng cần gom tối thiểu</label>
+            <label>Số lượng cần gom tối thiểu (người/sản phẩm)</label>
             <input type="number" min="2" [(ngModel)]="manualTargetQty" />
-            <label>Ưu đãi nhận được (% hoặc số tiền, VD: 15% hoặc 50k)</label>
-            <input type="text" [(ngModel)]="manualDiscount" placeholder="15%" />
+            <label>Ưu đãi nhận được (% giảm hoặc số tiền giảm)</label>
+            <input type="text" [(ngModel)]="manualDiscount" placeholder="15% hoặc 50k" />
             <label>Giá sản phẩm (VNĐ)</label>
             <input type="number" [(ngModel)]="manualUnitPrice" />
             <label>Phí ship cả đơn (VNĐ)</label>
@@ -45,7 +45,7 @@
         </div>
       }
 
-      @if (isAutoDetectSuccess || (detected && !detected.success)) {
+      @if (!detecting && detected) {
         <button type="button" class="cta-btn" [disabled]="creating" (click)="activateCampaign()">
           @if (creating) {
             <span class="spinner light"></span> Đang tạo kèo...
@@ -83,8 +83,9 @@
       <p class="highlight">{{ lobby.highlightMessage }}</p>
 
       <div class="share-row">
-        <input class="url-input" [value]="lobby.shareUrl" readonly />
-        <button type="button" class="icon-btn" (click)="copyShareLink()">📋</button>
+        <input class="url-input" [value]="displayShareUrl" readonly />
+        <button type="button" class="share-btn copy" (click)="copyShareLink()">📋 Copy</button>
+        <button type="button" class="share-btn native" (click)="shareNative()">🔗 Chia sẻ</button>
       </div>
       @if (copyHint) { <p class="copy-hint">{{ copyHint }}</p> }
 
@@ -124,7 +125,9 @@
         ⚡ Tham Gia Chốt Đơn Trên Shopee PC
       </button>
 
-      <button type="button" class="link-btn" (click)="backToCreate()">← Tạo kèo mới</button>
+      @if (!lobbyOnly) {
+        <button type="button" class="link-btn" (click)="backToCreate()">← Tạo kèo mới</button>
+      }
 
       @if (error) {
         <div class="alert error">{{ error }}</div>
