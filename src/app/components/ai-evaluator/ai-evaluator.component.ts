@@ -10,7 +10,6 @@ import { AffiliatePurchaseService } from '../../services/affiliate-purchase.serv
 import { SidebarNavService } from '../../services/sidebar-nav.service';
 import { AnalysisResponse, ProductAnalysis, SmartTag } from '../../models/analysis.model';
 import { CommentFetchProgress } from '../../models/ratings-fetch.model';
-import { buildTagSampleList } from '../../utils/tag-comment-matcher';
 
 @Component({
   selector: 'mca-ai-evaluator',
@@ -37,7 +36,6 @@ export class AiEvaluatorComponent implements OnInit, OnDestroy {
   /** 1–5 sao được chọn; mặc định tất cả */
   selectedStars: number[] = [1, 2, 3, 4, 5];
 
-  sourceComments: string[] = [];
   activeTagSamples: string[] = [];
 
   private tipTimer: ReturnType<typeof setInterval> | null = null;
@@ -93,7 +91,6 @@ export class AiEvaluatorComponent implements OnInit, OnDestroy {
     this.showDetailExpanded = false;
     this.activeTag = null;
     this.activeTagSamples = [];
-    this.sourceComments = [];
   }
 
   async refreshFromCurrentTab(): Promise<void> {
@@ -111,7 +108,6 @@ export class AiEvaluatorComponent implements OnInit, OnDestroy {
     this.showDetailExpanded = false;
       this.activeTag = null;
     this.activeTagSamples = [];
-    this.sourceComments = [];
       this.urlRefreshHint = 'Đã lấy link trang đang xem';
     } else {
       this.urlRefreshHint = 'Tab hiện tại không phải trang Shopee';
@@ -145,7 +141,6 @@ export class AiEvaluatorComponent implements OnInit, OnDestroy {
     this.showDetailExpanded = false;
     this.activeTag = null;
     this.activeTagSamples = [];
-    this.sourceComments = [];
 
     const liveUrl = await this.tabUrlService.fetchCurrentShopeeUrl();
     if (liveUrl) {
@@ -174,7 +169,6 @@ export class AiEvaluatorComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.sourceComments = comments.comments;
     this.loadingAnalyze = true;
     this.loadingTipIndex = 0;
     this.fetchProgress = { phase: 'analyze', commentsCount: comments.comments.length };
@@ -232,7 +226,7 @@ export class AiEvaluatorComponent implements OnInit, OnDestroy {
       return;
     }
     this.activeTag = tag;
-    this.activeTagSamples = buildTagSampleList(tag, this.sourceComments);
+    this.activeTagSamples = tag.sampleComments ?? [];
   }
 
   getTrustLabel(): string {
