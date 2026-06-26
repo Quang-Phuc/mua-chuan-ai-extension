@@ -1,0 +1,267 @@
+<div class="evaluator-content">
+  <section class="card input-card">
+    <div class="card-header">
+      <span class="card-icon">🔗</span>
+      <span class="card-title">Link sản phẩm</span>
+    </div>
+
+    <div class="url-input-row">
+      <input
+        id="product-url"
+        type="url"
+        class="url-input"
+        [(ngModel)]="productUrl"
+        (ngModelChange)="onUrlChange()"
+        placeholder="Dán link Shopee vào đây..." />
+      <button
+        type="button"
+        class="refresh-url-btn"
+        title="Lấy link trang Shopee đang xem"
+        [disabled]="refreshingUrl"
+        (click)="refreshFromCurrentTab()">
+        @if (refreshingUrl) {
+          <span class="btn-spinner"></span>
+        } @else {
+          ↻
+        }
+      </button>
+    </div>
+
+    @if (urlRefreshHint) {
+      <p class="url-refresh-hint" [class.warn]="urlRefreshIsWarn">{{ urlRefreshHint }}</p>
+    }
+
+    @if (productName) {
+      <div class="product-chip">
+        <span class="chip-dot"></span>
+        {{ productName }}
+      </div>
+    }
+
+    <button
+      class="analyze-btn"
+      [class.loading]="loading"
+      [disabled]="loading || !productUrl"
+      (click)="analyze()">
+      @if (loading) {
+        <span class="spinner"></span>
+        <span>Đang phân tích bằng AI...</span>
+      } @else {
+        <span class="btn-icon">⚡</span>
+        <span>Phân Tích Bằng AI</span>
+      }
+    </button>
+
+    @if (error) {
+      <div class="error-banner">{{ error }}</div>
+    }
+  </section>
+
+  @if (result) {
+    <section class="result-section">
+      <div class="score-card">
+        <div class="score-circle-wrap">
+          <svg class="score-svg" viewBox="0 0 120 120">
+            <defs>
+              <filter id="score-glow">
+                <feGaussianBlur stdDeviation="2" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <circle class="score-bg" cx="60" cy="60" r="52" />
+            <circle
+              class="score-progress"
+              cx="60" cy="60" r="52"
+              [attr.stroke]="getScoreColor(result.score)"
+              [style.stroke-dashoffset]="getScoreDashOffset(result.score)"
+              filter="url(#score-glow)" />
+          </svg>
+          <div class="score-inner">
+            <span class="score-value">{{ result.score }}</span>
+            <span class="score-unit">điểm</span>
+          </div>
+        </div>
+        <div class="score-meta">
+          <span class="score-label" [style.color]="getScoreColor(result.score)">
+            {{ getScoreLabel(result.score) }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Độ tin cậy review — luôn hiển thị đầu tiên -->
+      <div class="card trust-card" [class.trust-good]="isTrustGood()" [class.trust-warn]="!isTrustGood()">
+        <div class="trust-header">
+          <span class="trust-icon">{{ isTrustGood() ? '🟢' : '🔴' }}</span>
+          <div class="trust-title-wrap">
+            <span class="trust-title">
+              {{ isTrustGood() ? 'Độ tin cậy' : 'Cảnh báo' }}:
+              <strong>{{ getTrustLabel() }} ({{ getTrustPercent() }}%)</strong>
+            </span>
+            <p class="trust-reason">
+              {{ result.reviewTrust?.reason
+                ?? (result.seedingAlert === 'LOW'
+                  ? 'Đánh giá có nội dung đa dạng, ít dấu hiệu seeding.'
+                  : 'Phát hiện nhiều đánh giá ngắn, trùng lặp — cần thận trọng.') }}
+            </p>
+          </div>
+        </div>
+        <div class="trust-meter">
+          <div class="trust-meter-fill" [style.width.%]="getTrustPercent()"></div>
+        </div>
+      </div>
+
+      @if (result.productHistoryWarning?.detected) {
+        <div class="card history-warning-card">
+          <div class="warning-header">⚠️ CẢNH BÁO CHIÊU TRÒ</div>
+          <p>{{ result.productHistoryWarning?.message }}</p>
+        </div>
+      }
+
+      <!-- Ưu / Nhược — mặc định -->
+      <div class="pros-cons-row">
+        <div class="pros-card">
+          <div class="pc-header"><span>👍</span> Ưu điểm</div>
+          <ul>
+            @for (pro of result.pros; track pro) {
+              <li>{{ pro }}</li>
+            }
+          </ul>
+        </div>
+        <div class="cons-card">
+          <div class="pc-header"><span>👎</span> Nhược điểm</div>
+          <ul>
+            @for (con of result.cons; track con) {
+              <li>{{ con }}</li>
+            }
+          </ul>
+        </div>
+      </div>
+
+      <!-- Smart Tags — luôn hiện (quan trọng để né phốt) -->
+      @if (result.positiveTags?.length || result.negativeTags?.length) {
+        <div class="card tags-card">
+          <div class="card-header">
+            <span class="card-icon">🏷️</span>
+            <span class="card-title">Bộ lọc thông minh</span>
+          </div>
+          @if (result.positiveTags?.length) {
+            <div class="tag-group">
+              <span class="tag-group-label tag-pos">Tích cực</span>
+              <div class="tag-list">
+                @for (tag of result.positiveTags; track tag.label) {
+                  <button
+                    type="button"
+                    class="smart-tag tag-positive"
+                    [class.active]="activeTag?.label === tag.label"
+                    (click)="selectTag(tag)">
+                    {{ tag.label }} ({{ tag.count }})
+                  </button>
+                }
+              </div>
+            </div>
+          }
+          @if (result.negativeTags?.length) {
+            <div class="tag-group">
+              <span class="tag-group-label tag-neg">Tiêu cực — né phốt</span>
+              <div class="tag-list">
+                @for (tag of result.negativeTags; track tag.label) {
+                  <button
+                    type="button"
+                    class="smart-tag tag-negative"
+                    [class.active]="activeTag?.label === tag.label"
+                    (click)="selectTag(tag)">
+                    {{ tag.label }} ({{ tag.count }})
+                  </button>
+                }
+              </div>
+            </div>
+          }
+          @if (activeTag?.sampleComments?.length) {
+            <div class="tag-samples">
+              <span class="samples-label">Comment thực tế về "{{ activeTag!.label }}":</span>
+              @for (sample of activeTag!.sampleComments; track sample) {
+                <blockquote>"{{ sample }}"</blockquote>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <button type="button" class="detail-toggle-btn" (click)="toggleDetail()">
+        {{ showDetailExpanded ? 'Thu gọn tóm tắt ▲' : 'Xem tóm tắt chi tiết 📋' }}
+      </button>
+
+      @if (showDetailExpanded) {
+        <div class="detail-panel">
+          @if (result.topicSummaries?.length) {
+            <div class="card topic-card">
+              <div class="card-header">
+                <span class="card-icon">💬</span>
+                <span class="card-title">Tỷ lệ theo chủ đề</span>
+              </div>
+              @for (topic of result.topicSummaries; track topic.topic; let i = $index) {
+                <div class="topic-row" [style.animation-delay.ms]="i * 80">
+                  <div class="topic-header">
+                    <span class="topic-name">{{ topic.topic }}</span>
+                    <span class="topic-pct">{{ topic.percentage }}%</span>
+                  </div>
+                  <div class="progress-track">
+                    <div
+                      class="progress-fill"
+                      [class]="getTopicBarClass(topic.sentiment)"
+                      [style.width.%]="topic.percentage">
+                    </div>
+                  </div>
+                  <p class="topic-summary">{{ topic.summary }}</p>
+                </div>
+              }
+            </div>
+          }
+
+          @if (result.variantInsights?.length) {
+            <div class="card variant-card">
+              <div class="card-header">
+                <span class="card-icon">📏</span>
+                <span class="card-title">Gợi ý chọn biến thể</span>
+              </div>
+              @for (insight of result.variantInsights; track insight.title) {
+                <div class="variant-row">
+                  <span class="variant-title">{{ insight.title }}</span>
+                  <p class="variant-summary">{{ insight.summary }}</p>
+                </div>
+              }
+            </div>
+          }
+
+          @if (result.positiveCommentCluster || result.negativeCommentCluster) {
+            <div class="card cluster-card">
+              <div class="card-header">
+                <span class="card-icon">📊</span>
+                <span class="card-title">Tóm tắt nhanh</span>
+              </div>
+              @if (result.positiveCommentCluster) {
+                <p class="cluster-line cluster-pos">👍 {{ result.positiveCommentCluster }}</p>
+              }
+              @if (result.negativeCommentCluster) {
+                <p class="cluster-line cluster-neg">👎 {{ result.negativeCommentCluster }}</p>
+              }
+            </div>
+          }
+        </div>
+      }
+    </section>
+  } @else if (!loading && !error) {
+    <div class="empty-state">
+      <div class="empty-icon">✨</div>
+      <p class="empty-title">Sẵn sàng phân tích</p>
+      <p class="empty-desc">Dán link Shopee và bấm Phân Tích để xem điểm AI, độ tin cậy review và bộ lọc né phốt.</p>
+    </div>
+  }
+</div>
+
+@if (result?.affiliateUrl) {
+  <button class="affiliate-btn" (click)="openAffiliate()">
+    <span class="affiliate-shine"></span>
+    <span class="affiliate-text">🛒 Mua Ngay Nhận Ưu Đãi</span>
+  </button>
+}

@@ -1,0 +1,110 @@
+<div class="comparator-content">
+  <section class="card input-card">
+    <div class="card-header">
+      <span class="card-icon">⚔️</span>
+      <span class="card-title">So sánh 2 sản phẩm</span>
+    </div>
+
+    <label class="field-label">Sản phẩm A</label>
+    <div class="url-input-row">
+      <input
+        type="url"
+        class="url-input"
+        [(ngModel)]="urlA"
+        placeholder="Link sản phẩm thứ nhất..." />
+      <button
+        type="button"
+        class="refresh-url-btn"
+        title="Lấy link trang Shopee đang xem"
+        [disabled]="refreshingUrlA"
+        (click)="refreshUrlAFromTab()">
+        @if (refreshingUrlA) {
+          <span class="btn-spinner"></span>
+        } @else {
+          ↻
+        }
+      </button>
+    </div>
+
+    @if (urlRefreshHint) {
+      <p class="url-refresh-hint">{{ urlRefreshHint }}</p>
+    }
+
+    <label class="field-label">Sản phẩm B</label>
+    <input
+      type="url"
+      class="url-input full"
+      [(ngModel)]="urlB"
+      placeholder="Dán link sản phẩm thứ 2..." />
+
+    <button
+      class="compare-btn"
+      [class.loading]="loading"
+      [disabled]="loading || !urlA || !urlB"
+      (click)="compare()">
+      @if (loading) {
+        <span class="spinner"></span>
+        <span>Đang so sánh...</span>
+      } @else {
+        <span>⚔️ So Sánh Ngay</span>
+      }
+    </button>
+
+    @if (error) {
+      <div class="error-banner">{{ error }}</div>
+    }
+  </section>
+
+  @if (result && result.products.length >= 2) {
+    <section class="compare-result">
+      <div class="winner-banner" [class.side-a]="isWinner(0)" [class.side-b]="isWinner(1)">
+        @if (isWinner(0) || isWinner(1)) {
+          <span class="crown">🏆</span>
+          <span>AI Khuyên Mua — Sản phẩm {{ isWinner(0) ? 'A' : 'B' }}</span>
+        }
+      </div>
+
+      @if (result.comparison?.reason) {
+        <div class="ai-reason">
+          <span class="reason-icon">💡</span>
+          <p>{{ result.comparison!.reason }}</p>
+        </div>
+      }
+
+      <div class="score-duel">
+        <div class="duel-col" [class.winner]="isWinner(0)">
+          <span class="duel-label">SP A</span>
+          <span class="big-score">{{ getProduct(0)?.score ?? '-' }}</span>
+        </div>
+        <div class="vs-badge">VS</div>
+        <div class="duel-col" [class.winner]="isWinner(1)">
+          <span class="duel-label">SP B</span>
+          <span class="big-score">{{ getProduct(1)?.score ?? '-' }}</span>
+        </div>
+      </div>
+
+      <div class="comment-duel">
+        <div class="comment-box warn-box">
+          <h4>⚠️ Cảnh báo A</h4>
+          <p>{{ getProduct(0)?.negativeCommentCluster ?? 'Không có dữ liệu' }}</p>
+        </div>
+        <div class="comment-box good-box">
+          <h4>✅ Điểm mạnh B</h4>
+          <p>{{ getProduct(1)?.positiveCommentCluster ?? 'Không có dữ liệu' }}</p>
+        </div>
+      </div>
+
+      <div class="affiliate-duel">
+        <button class="affiliate-secondary" (click)="openUrl(getProduct(0)?.affiliateUrl ?? urlA)">
+          Xem SP A
+        </button>
+        <button
+          class="affiliate-primary"
+          [class.winner-btn]="isWinner(1)"
+          (click)="openUrl(getProduct(1)?.affiliateUrl ?? urlB)">
+          🛒 Mua SP B Xịn Nhất
+        </button>
+      </div>
+    </section>
+  }
+</div>

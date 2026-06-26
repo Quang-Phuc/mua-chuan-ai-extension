@@ -1,0 +1,42 @@
+// Mua Chuẩn AI — Design System
+$sidebar-width: 380px;
+
+// Brand
+$shopee-orange: #EE4D2D;
+$shopee-orange-light: #FF6B4A;
+$shopee-orange-dark: #D73211;
+$shopee-gradient: linear-gradient(135deg, #FF6333 0%, #EE4D2D 50%, #D73211 100%);
+
+// Semantic
+$score-green: #10B981;
+$score-yellow: #F59E0B;
+$score-red: #EF4444;
+$pros-bg: linear-gradient(145deg, #ECFDF5 0%, #D1FAE5 100%);
+$cons-bg: linear-gradient(145deg, #FEF2F2 0%, #FECACA 100%);
+$compare-btn: #1E293B;
+$compare-gradient: linear-gradient(135deg, #334155 0%, #1E293B 100%);
+
+// Neutrals
+$bg-page: #F8FAFC;
+$bg-card: #FFFFFF;
+$text-primary: #0F172A;
+$text-secondary: #475569;
+$text-muted: #94A3B8;
+$border-light: rgba(15, 23, 42, 0.08);
+$border-focus: rgba(238, 77, 45, 0.45);
+
+// Shape & depth
+$radius-sm: 8px;
+$radius-md: 12px;
+$radius-lg: 16px;
+$radius-xl: 20px;
+$radius-pill: 999px;
+$border-radius: $radius-sm;
+
+$shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+$shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+$shadow-lg: 0 8px 32px rgba(15, 23, 42, 0.12);
+$shadow-orange: 0 8px 24px rgba(238, 77, 45, 0.35);
+
+// Typography
+$font-display: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;

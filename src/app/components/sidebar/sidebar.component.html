@@ -1,0 +1,33 @@
+<header class="sidebar-header">
+  <div class="brand">
+    <div class="brand-icon">🛍️</div>
+    <div class="brand-text">
+      <h1 class="sidebar-title">Mua Chuẩn AI</h1>
+      <p class="sidebar-tagline">Phân tích Shopee thông minh</p>
+    </div>
+  </div>
+  <nav class="tab-nav">
+    <button
+      class="tab-btn"
+      [class.active]="activeTab === 'evaluator'"
+      (click)="setTab('evaluator')">
+      <span class="tab-icon">🤖</span>
+      <span>AI Đánh Giá</span>
+    </button>
+    <button
+      class="tab-btn"
+      [class.active]="activeTab === 'comparator'"
+      (click)="setTab('comparator')">
+      <span class="tab-icon">⚖️</span>
+      <span>So Sánh</span>
+    </button>
+  </nav>
+</header>
+
+<main class="sidebar-body">
+  @if (activeTab === 'evaluator') {
+    <mca-ai-evaluator />
+  } @else {
+    <mca-product-comparator />
+  }
+</main>

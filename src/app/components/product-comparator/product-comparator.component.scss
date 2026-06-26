@@ -1,0 +1,263 @@
+@import '../../../styles/variables';
+
+.comparator-content {
+  padding: 16px;
+}
+
+.input-section {
+  margin-bottom: 20px;
+}
+
+.input-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  margin: 12px 0 6px;
+
+  &:first-child { margin-top: 0; }
+}
+
+.url-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+
+  .url-input {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.refresh-url-btn {
+  flex-shrink: 0;
+  width: 40px;
+  padding: 0;
+  border: 1px solid #ddd;
+  border-radius: $border-radius;
+  background: #f8f8f8;
+  color: $shopee-orange;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover:not(:disabled) {
+    background: #fff3ef;
+    border-color: $shopee-orange;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(238, 77, 45, 0.25);
+  border-top-color: $shopee-orange;
+  border-radius: 50%;
+  animation: mca-spin 0.7s linear infinite;
+}
+
+.url-refresh-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #1a7a4c;
+}
+
+.url-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: $border-radius;
+  font-size: 13px;
+
+  &.readonly {
+    background: #f5f5f5;
+    color: $text-muted;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: $compare-btn;
+  }
+}
+
+.compare-btn {
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px;
+  background: $compare-btn;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  border: none;
+  border-radius: $border-radius;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+
+  &:not(:disabled):hover {
+    background: darken($compare-btn, 8%);
+  }
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: mca-spin 0.7s linear infinite;
+}
+
+.error-msg {
+  margin-top: 8px;
+  color: $score-red;
+  font-size: 12px;
+}
+
+/* Compare Result */
+.compare-result {
+  border-top: 1px solid #eee;
+  padding-top: 16px;
+}
+
+.compare-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: start;
+
+  &.recommendation-row,
+  &.affiliate-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.col {
+  text-align: center;
+  min-height: 32px;
+
+  &.winner .crown-badge {
+    display: inline-block;
+  }
+}
+
+.crown-badge {
+  display: none;
+  padding: 6px 10px;
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: #333;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.ai-reason {
+  margin: 0 0 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-left: 3px solid $compare-btn;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #444;
+}
+
+.score-row {
+  align-items: center;
+  margin: 16px 0;
+}
+
+.big-score {
+  font-size: 32px;
+  font-weight: 800;
+  color: #333;
+
+  &.winner-score {
+    color: $shopee-orange;
+  }
+}
+
+.vs {
+  font-size: 18px;
+  text-align: center;
+}
+
+.comment-row {
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+
+  .col {
+    text-align: left;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .col-a {
+    background: $cons-bg;
+    h4 { color: #c0392b; margin: 0 0 6px; font-size: 12px; }
+  }
+
+  .col-b {
+    background: $pros-bg;
+    h4 { color: #1a7a4c; margin: 0 0 6px; font-size: 12px; }
+  }
+
+  p { margin: 0; color: #555; }
+}
+
+.affiliate-row {
+  margin-top: 16px;
+  gap: 10px;
+}
+
+.affiliate-secondary {
+  width: 100%;
+  padding: 10px;
+  background: #e0e0e0;
+  color: #666;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: $border-radius;
+  cursor: pointer;
+
+  &:hover { background: #d0d0d0; }
+}
+
+.affiliate-primary {
+  width: 100%;
+  padding: 10px;
+  background: $shopee-orange;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  border: none;
+  border-radius: $border-radius;
+  cursor: pointer;
+
+  &.winner-btn {
+    animation: mca-pulse 2s ease-in-out infinite;
+  }
+
+  &:hover {
+    opacity: 0.9;
+  }
+}
