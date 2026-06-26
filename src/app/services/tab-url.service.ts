@@ -90,4 +90,21 @@ export class TabUrlService {
   isShopeeProductUrl(url: string): boolean {
     return this.isShopeeUrl(url) && (url.includes('/product/') || /\.i\.\d+/i.test(url));
   }
+
+  parseProductIds(url: string): { shopId: number; itemId: number } | null {
+    if (!url) return null;
+    try {
+      const iid = url.match(/[-.]i\.(\d+)\.(\d+)/i);
+      if (iid) {
+        return { shopId: Number(iid[1]), itemId: Number(iid[2]) };
+      }
+      const product = url.match(/\/product\/(\d+)\/(\d+)/i);
+      if (product) {
+        return { shopId: Number(product[1]), itemId: Number(product[2]) };
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
 }

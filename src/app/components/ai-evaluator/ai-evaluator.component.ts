@@ -3,7 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TabUrlService } from '../../services/tab-url.service';
 import { AnalysisApiService } from '../../services/analysis-api.service';
+import { ShopeeRatingsService } from '../../services/shopee-ratings.service';
+import { AffiliateApiService } from '../../services/affiliate-api.service';
 import { AffiliateSilentService } from '../../services/affiliate-silent.service';
+import { AffiliatePurchaseService } from '../../services/affiliate-purchase.service';
 import { AnalysisResponse, ProductAnalysis, SmartTag } from '../../models/analysis.model';
 
 @Component({
@@ -17,6 +20,7 @@ export class AiEvaluatorComponent implements OnInit {
   productUrl = '';
   productName: string | null = null;
   loading = false;
+  loadingComments = false;
   refreshingUrl = false;
   urlRefreshHint: string | null = null;
   urlRefreshIsWarn = false;
@@ -28,7 +32,10 @@ export class AiEvaluatorComponent implements OnInit {
   constructor(
     private tabUrlService: TabUrlService,
     private analysisApi: AnalysisApiService,
-    private affiliateSilent: AffiliateSilentService
+    private shopeeRatings: ShopeeRatingsService,
+    private affiliateApi: AffiliateApiService,
+    private affiliateSilent: AffiliateSilentService,
+    private affiliatePurchase: AffiliatePurchaseService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -71,26 +78,36 @@ export class AiEvaluatorComponent implements OnInit {
     this.productName = this.tabUrlService.extractProductName(this.productUrl);
   }
 
-  analyze(): void {
+  async analyze(): Promise<void> {
     if (!this.productUrl || this.loading) return;
 
     this.loading = true;
+    this.loadingComments = true;
     this.error = null;
     this.result = null;
     this.showDetailExpanded = false;
     this.activeTag = null;
 
+    // Bước 3: Ghim cookie affiliate ngay khi bấm Phân Tích (song song với lấy comment)
+    this.pinAffiliateSilently(this.productUrl);
+
+    const comments = await this.shopeeRatings.fetchCommentsForUrl(this.productUrl);
+    this.loadingComments = false;
+
+    if (!comments.length) {
+      this.error = 'Không lấy được comment Shopee. Hãy mở extension trên trang shopee.vn (đã đăng nhập).';
+      this.loading = false;
+      return;
+    }
+
     this.analysisApi.analyze({
       urls: [this.productUrl],
+      comments: [comments],
       triggerSource: 'AI_EVALUATOR'
     }).subscribe({
       next: (res: AnalysisResponse) => {
         this.result = res.products[0] ?? null;
         this.loading = false;
-
-        if (this.result?.affiliateUrl) {
-          this.affiliateSilent.activateSilently(this.result.affiliateUrl);
-        }
       },
       error: (err) => {
         this.error = err?.error?.message ?? 'Không thể phân tích. Vui lòng thử lại.';
@@ -155,8 +172,20 @@ export class AiEvaluatorComponent implements OnInit {
   }
 
   openAffiliate(): void {
-    if (this.result?.affiliateUrl) {
-      window.open(this.result.affiliateUrl, '_blank');
-    }
+    this.affiliatePurchase.buyOnPc(this.result?.affiliateUrl);
+  }
+
+  /** Gọi API đổi link → mở tab ẩn shope.ee để Shopee ghim cookie affiliate */
+  private pinAffiliateSilently(productUrl: string): void {
+    this.affiliateApi.convert(productUrl).subscribe({
+      next: (res) => {
+        if (res.affiliateUrl) {
+          this.affiliateSilent.activateSilently(res.affiliateUrl);
+        }
+      },
+      error: () => {
+        // Không chặn luồng phân tích AI nếu affiliate lỗi
+      }
+    });
   }
 }

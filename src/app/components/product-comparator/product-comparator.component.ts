@@ -3,6 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TabUrlService } from '../../services/tab-url.service';
 import { AnalysisApiService } from '../../services/analysis-api.service';
+import { ShopeeRatingsService } from '../../services/shopee-ratings.service';
+import { AffiliateApiService } from '../../services/affiliate-api.service';
+import { AffiliateSilentService } from '../../services/affiliate-silent.service';
+import { AffiliatePurchaseService } from '../../services/affiliate-purchase.service';
 import { AnalysisResponse, ProductAnalysis } from '../../models/analysis.model';
 
 @Component({
@@ -16,6 +20,7 @@ export class ProductComparatorComponent implements OnInit {
   urlA = '';
   urlB = '';
   loading = false;
+  loadingComments = false;
   refreshingUrlA = false;
   urlRefreshHint: string | null = null;
   result: AnalysisResponse | null = null;
@@ -23,7 +28,11 @@ export class ProductComparatorComponent implements OnInit {
 
   constructor(
     private tabUrlService: TabUrlService,
-    private analysisApi: AnalysisApiService
+    private analysisApi: AnalysisApiService,
+    private shopeeRatings: ShopeeRatingsService,
+    private affiliateApi: AffiliateApiService,
+    private affiliateSilent: AffiliateSilentService,
+    private affiliatePurchase: AffiliatePurchaseService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -46,15 +55,32 @@ export class ProductComparatorComponent implements OnInit {
     }
   }
 
-  compare(): void {
+  async compare(): Promise<void> {
     if (!this.urlA || !this.urlB || this.loading) return;
 
     this.loading = true;
+    this.loadingComments = true;
     this.error = null;
     this.result = null;
 
+    this.pinAffiliateSilently(this.urlA);
+    this.pinAffiliateSilently(this.urlB);
+
+    const [commentsA, commentsB] = await Promise.all([
+      this.shopeeRatings.fetchCommentsForUrl(this.urlA),
+      this.shopeeRatings.fetchCommentsForUrl(this.urlB)
+    ]);
+    this.loadingComments = false;
+
+    if (!commentsA.length && !commentsB.length) {
+      this.error = 'Không lấy được comment. Hãy mở extension trên trang shopee.vn (đã đăng nhập).';
+      this.loading = false;
+      return;
+    }
+
     this.analysisApi.analyze({
       urls: [this.urlA, this.urlB],
+      comments: [commentsA, commentsB],
       triggerSource: 'PRODUCT_COMPARATOR'
     }).subscribe({
       next: (res) => {
@@ -76,7 +102,14 @@ export class ProductComparatorComponent implements OnInit {
     return this.result?.comparison?.winnerIndex === index;
   }
 
-  openUrl(url: string): void {
-    window.open(url, '_blank');
+  buyProduct(affiliateUrl: string | undefined, fallbackUrl: string): void {
+    this.affiliatePurchase.buyOnPc(affiliateUrl || fallbackUrl);
+  }
+
+  private pinAffiliateSilently(productUrl: string): void {
+    this.affiliateApi.convert(productUrl).subscribe({
+      next: (res) => this.affiliateSilent.activateSilently(res.affiliateUrl),
+      error: () => {}
+    });
   }
 }

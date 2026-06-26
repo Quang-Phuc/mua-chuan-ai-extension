@@ -59,5 +59,7 @@ export interface AnalysisResponse {
 
 export interface AnalysisRequest {
   urls: string[];
+  /** Comment lấy từ trình duyệt Shopee (cùng thứ tự urls) */
+  comments?: string[][];
   triggerSource: string;
 }

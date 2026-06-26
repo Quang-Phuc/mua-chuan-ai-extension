@@ -45,7 +45,7 @@
       (click)="analyze()">
       @if (loading) {
         <span class="spinner"></span>
-        <span>Đang phân tích bằng AI...</span>
+        <span>{{ loadingComments ? 'Đang lấy comment Shopee...' : 'Đang phân tích bằng AI...' }}</span>
       } @else {
         <span class="btn-icon">⚡</span>
         <span>Phân Tích Bằng AI</span>
@@ -262,6 +262,6 @@
 @if (result?.affiliateUrl) {
   <button class="affiliate-btn" (click)="openAffiliate()">
     <span class="affiliate-shine"></span>
-    <span class="affiliate-text">🛒 Mua Ngay Nhận Ưu Đãi</span>
+    <span class="affiliate-text">🛒 Mua Trên Shopee PC</span>
   </button>
 }

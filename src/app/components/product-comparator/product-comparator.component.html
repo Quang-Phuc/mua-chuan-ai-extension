@@ -44,7 +44,7 @@
       (click)="compare()">
       @if (loading) {
         <span class="spinner"></span>
-        <span>Đang so sánh...</span>
+        <span>{{ loadingComments ? 'Đang lấy comment Shopee...' : 'Đang so sánh bằng AI...' }}</span>
       } @else {
         <span>⚔️ So Sánh Ngay</span>
       }
@@ -95,14 +95,14 @@
       </div>
 
       <div class="affiliate-duel">
-        <button class="affiliate-secondary" (click)="openUrl(getProduct(0)?.affiliateUrl ?? urlA)">
+        <button class="affiliate-secondary" (click)="buyProduct(getProduct(0)?.affiliateUrl, urlA)">
           Xem SP A
         </button>
         <button
           class="affiliate-primary"
           [class.winner-btn]="isWinner(1)"
-          (click)="openUrl(getProduct(1)?.affiliateUrl ?? urlB)">
-          🛒 Mua SP B Xịn Nhất
+          (click)="buyProduct(getProduct(1)?.affiliateUrl, urlB)">
+          🛒 Mua SP B Trên PC
         </button>
       </div>
     </section>
